@@ -1,18 +1,19 @@
 #include <iostream>
-#include <GL\glew.h>
-#include <GLFW/glfw3.h>
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include "Sphere.h"
+#include "Ray.h"
+
+
 
 unsigned int height = 480, width = 640;
-struct vec3f {
-	float r;
-	float g;
-	float b;
-};
+float invWidth = 1 / float(width), invHeight = 1 / float(height);
+float fov = 30, aspectratio = width / float(height);
+float angle = tan(M_PI * 0.5 * fov / 180.);
 
-std::vector<vec3f> image;
+
+std::vector<Color> image;
 
 void gen_ppm_image() {
 	std::ofstream ofs("./test.ppm", std::ios::out, std::ios::binary);
@@ -31,47 +32,24 @@ void gen_ppm_image() {
 	ofs.close();
 }
 
+Ray computePrimRay(unsigned int x, unsigned int y) 
+{
+	float xx = (2 * ((x + 0.5) * invWidth) - 1) * angle * aspectratio;
+	float yy = (1 - 2 * ((y + 0.5) * invHeight)) * angle;
+
+	std::cout << "x: " << xx
+		<< "y: " << yy << std::endl;
+
+	return Ray({ 0.0, 0.0, 0.0 }, {xx, yy, -1.0f});
+}
+
 
 int main() {
-	image = std::vector<vec3f>(width * height, { 0.5f, 0.5f, 0.5f });
+	image = std::vector<Color>(width * height, { 0.5f, 0.5f, 0.5f });
+
+	Ray primRay = computePrimRay(1, 1);		
+
 	gen_ppm_image();
 }
 
 
-//
-//int main(void)
-//{
-//    GLFWwindow* window;
-//
-//    /* Initialize the library */
-//    if (!glfwInit())
-//        return -1;
-//
-//    /* Create a windowed mode window and its OpenGL context */
-//    window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
-//    if (!window)
-//    {
-//        glfwTerminate();
-//        return -1;
-//    }
-//
-//    /* Make the window's context current */
-//    glfwMakeContextCurrent(window);
-//
-// 
-//    /* Loop until the user closes the window */
-//    while (!glfwWindowShouldClose(window))
-//    {
-//        /* Render here */
-//        glClear(GL_COLOR_BUFFER_BIT);
-//
-//        /* Swap front and back buffers */
-//        glfwSwapBuffers(window);
-//
-//        /* Poll for and process events */
-//        glfwPollEvents();
-//    }
-//
-//    glfwTerminate();
-//    return 0;
-//}
