@@ -28,28 +28,24 @@ static Vec3 direction(Vec3 const& a, Vec3 const& b)
 	return { b.x - a.x, b.y - a.y, b.z - a.z };
 }
 
+static float distance(Vec3 const& a, Vec3 const& b)
+{
+	return  sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2) + pow(b.z - a.z, 2));
+}
+
 
 bool checkIntersection(Ray const& ray, Sphere const& s, Vec3& point)
 {
-	Vec3 m = direction(ray.rayOrig, s.origin);
-	float b = dot(m, ray.rayDirc);
-	float c = dot(m, m) - s.radius * s.radius;
+	//solve for tc
+	float L = distance(s.origin , ray.rayOrig);
 
-	// the ray points away from the sphere
-	if (b > 0.0f && c > 0.0f) return false;
+	float tc = ray.rayDirc.x * L + ray.rayDirc.y * L + ray.rayDirc.z * -L;
+	if (tc < 0.0) return false;
 
-	float discrinant = b * b - c;
 
-	// no intersection
-	if (discrinant < 0.0f) return false;
+	float d = sqrt((L * L) - (tc * tc));
 
-	float t = -b - sqrt(discrinant);
-
-	// If t is negative, ray started inside sphere so clamp t to zero 
-	if (t < 0.0f) t = 0.0f;
-	point = { ray.rayOrig.x + ray.rayDirc.x * t,
-			  ray.rayOrig.y + ray.rayDirc.y * t,
-			  ray.rayOrig.z + ray.rayDirc.z * t };
+	if (d > s.radius) return false;
 
 	return true;
 }
@@ -85,11 +81,27 @@ Ray computePrimRay(unsigned int x, unsigned int y)
 
 int main() {
 	image = std::vector<Color>(width * height, { 0.5f, 0.5f, 0.5f });
-	Sphere sphere({ 1.00, 0.32, 0.36 }, { 0.0, 0, -20 }, 4.0f);
+	int pixel = 0;
+	Sphere sphere({ 1.00, 0.32, 0.36 }, { 0.0, 0, -20 }, 1.0f);
+	//Vec3 p;
+	//std::cout << checkIntersection(computePrimRay(width / 2, height / 2), sphere, p) << std::endl;
 
-	Ray primRay = computePrimRay(1, 1);		
+	for (unsigned int i = 0; i < width; ++i) 
+	{
+		for (unsigned int j = 0; j < height; ++j, ++pixel) 
+		{
+			Ray primRay = computePrimRay(i, j);
+			Vec3 p;
+			if (checkIntersection(primRay, sphere, p)) image[pixel] = { 1.0, 1.0, 1.0 };
+
+
+		}
+	
+	}
 
 	gen_ppm_image();
+
+	//std::cout << sqrt(4.1) << std::endl;
 }
 
 
