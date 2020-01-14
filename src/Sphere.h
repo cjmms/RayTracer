@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include "Ray.h"
+
 
 #if defined __linux__ || defined __APPLE__ 
 #else 
@@ -8,6 +10,8 @@
 #define M_PI 3.141592653589793 
 #define INFINITY 1e8 
 #endif 
+
+struct Vec3;
 
 struct Color {
 	float r;
@@ -19,9 +23,8 @@ class Sphere {
 
 public:	
 	Color color;
-	float x, y, z;
+	Vec3 origin;
 	float radius;
 
-	Sphere(Color const& color, float x, float y, float z, float radius);
-
+	Sphere(Color color, Vec3 origin, float radius);
 };
