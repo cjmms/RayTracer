@@ -46,3 +46,5 @@
 *.vcxproj.filters
 *.vcxproj.user
 **/.vs/
+**/Debug/
+**/Release/

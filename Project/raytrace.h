@@ -10,7 +10,7 @@ class Intersection;
 class Ray;
 
 const float PI = 3.14159f;
-
+const float Radians = PI / 180.0f;    // Convert degrees to radians
 
 ////////////////////////////////////////////////////////////////////////
 // Material: encapsulates a BRDF and communication with a shader.
@@ -76,12 +76,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 // Scene
-class Realtime;
+
 
 class Scene {
 public:
     int width, height;
-    Realtime* realtime;         // Remove this (realtime stuff)
     Material* currentMat;
     Camera* camera;
 
@@ -108,6 +107,5 @@ public:
     void TraceImage(Color* image, const int pass);
 
     Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree);
-    Intersection TraceRay_No_BVH(const Ray& ray);
 };
 

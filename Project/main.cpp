@@ -101,8 +101,7 @@ int main(int argc, char** argv)
     Scene* scene = new Scene();
 
     // Read the command line argument
-    //std::string inName =  (argc > 1) ? argv[1] : "testscene.scn";
-    std::string inName = (argc > 1) ? argv[1] : "testscene.scn";
+    std::string inName = (argc > 1) ? argv[1] : "test.scn";
     std::string hdrName = inName;
 
     hdrName.replace(hdrName.size()-3, hdrName.size(), "hdr");
@@ -121,11 +120,7 @@ int main(int argc, char** argv)
     // RayTrace the image
     scene->TraceImage(image, 1);
 
-   // printf("image\n");
 
     // Write the image
     WriteHdrImage(hdrName, scene->width, scene->height, image);
-
-
-
 }

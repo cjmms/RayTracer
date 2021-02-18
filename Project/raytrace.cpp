@@ -16,7 +16,7 @@
 
 #include "geom.h"
 #include "raytrace.h"
-#include "realtime.h"
+
 #include "Camera.h"
 #include "Obj.h"
 #include "Minimizer.h"
@@ -34,11 +34,7 @@ std::uniform_real_distribution<> myrandom(0.0, 1.0);
 
 Scene::Scene() 
 { 
-    // RT version
     camera = new Camera();
-
-    // real time rendering version
-    realtime = new Realtime(); 
 }
 
 void Scene::Finit()
@@ -47,7 +43,6 @@ void Scene::Finit()
 
 void Scene::triangleMesh(MeshData* mesh) 
 { 
-    //realtime->triangleMesh(mesh); 
     for (auto i : mesh->triangles) {
         objects.push_back(new Triangle(
             mesh->vertices[i[0]].pnt,
@@ -58,8 +53,6 @@ void Scene::triangleMesh(MeshData* mesh)
             mesh->vertices[i[2]].nrm,
             mesh->mat));
     }
-
-    realtime->triangleMesh(mesh); 
 }
 
 Quaternionf Orientation(int i, 
@@ -84,30 +77,7 @@ Quaternionf Orientation(int i,
     return q;
 }
 
-////////////////////////////////////////////////////////////////////////
-// Material: encapsulates surface properties
-void Material::setTexture(const std::string path)
-{
-    
-    int width, height, n;
-    stbi_set_flip_vertically_on_load(true);
-    unsigned char* image = stbi_load(path.c_str(), &width, &height, &n, 0);
 
-    // Realtime code below:  This sends the texture in *image to the graphics card.
-    // The raytracer will not use this code (nor any features of OpenGL nor the graphics card).
-    glGenTextures(1, &texid);
-    glBindTexture(GL_TEXTURE_2D, texid);
-    glTexImage2D(GL_TEXTURE_2D, 0, n, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 100);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (int)GL_LINEAR);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (int)GL_LINEAR_MIPMAP_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    stbi_image_free(image);
-    
-}
 
 void Scene::Command(const std::vector<std::string>& strings,
                     const std::vector<float>& f)
@@ -116,63 +86,35 @@ void Scene::Command(const std::vector<std::string>& strings,
     std::string c = strings[0];
     
     if (c == "screen") {
-        // syntax: screen width height
-        realtime->setScreen(int(f[1]),int(f[2]));
         width = int(f[1]);
         height = int(f[2]); }
 
     else if (c == "camera") {
-        // RT
         camera->setCamera(Vector3f(f[1], f[2], f[3]), Orientation(5, strings, f), f[4]);
-
-        // syntax: camera x y z   ry   <orientation spec>
-        // Eye position (x,y,z),  view orientation (qw qx qy qz),  frustum height ratio ry
-        realtime->setCamera(Vector3f(f[1],f[2],f[3]), Orientation(5,strings,f), f[4]); }
-
-    else if (c == "ambient") {
-        // syntax: ambient r g b
-        // Sets the ambient color.  Note: This parameter is temporary.
-        // It will be ignored once your raytracer becomes capable of
-        // accurately *calculating* the true ambient light.
-        realtime->setAmbient(Vector3f(f[1], f[2], f[3])); }
+    }
 
     else if (c == "brdf")  {
-        // syntax: brdf  r g b   r g b  alpha
-        // later:  brdf  r g b   r g b  alpha  r g b ior
-        // First rgb is Diffuse reflection, second is specular reflection.
-        // third is beer's law transmission followed by index of refraction.
-        // Creates a Material instance to be picked up by successive shapes
+
         currentMat = new Material(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7]); }
 
     else if (c == "light") {
-        // syntax: light  r g b   
-        // The rgb is the emission of the light
-        // Creates a Material instance to be picked up by successive shapes
+
         currentMat = new Light(Vector3f(f[1], f[2], f[3])); }
    
     else if (c == "sphere") {
         // RT version
         objects.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
-
-        // syntax: sphere x y z   r
-        // Creates a Shape instance for a sphere defined by a center and radius
-        realtime->sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat); }
+    }
 
     else if (c == "box") {
         // RT version
         objects.push_back(new Box(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), currentMat));
-
-        // syntax: box bx by bz   dx dy dz
-        // Creates a Shape instance for a box defined by a corner point and diagonal vector
-        realtime->box(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), currentMat); }
+    }
 
     else if (c == "cylinder") {
         // RT version
         objects.push_back(new Cylinder(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7], currentMat));
-
-        // syntax: cylinder bx by bz   ax ay az  r
-        // Creates a Shape instance for a cylinder defined by a base point, axis vector, and radius
-        realtime->cylinder(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7], currentMat); }
+    }
 
 
     else if (c == "mesh") {
@@ -195,15 +137,18 @@ void Scene::Command(const std::vector<std::string>& strings,
 }
 
 
-
+void Material::setTexture(const std::string path)
+{
+    int width, height, n;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* image = stbi_load(path.c_str(), &width, &height, &n, 0);
+}
 
 
 
 
 void Scene::TraceImage(Color* image, const int pass)
 {
-   // realtime->run();                          // Remove this (realtime stuff)
-
     KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
     Timer timer;
 
@@ -212,13 +157,11 @@ void Scene::TraceImage(Color* image, const int pass)
 
         fprintf(stderr, "Rendering %4d\r", y);
         for (int x = 0; x < width; x++) {
-            Color color = Color(0.3, 0.3, 0.3);
+            Color color = Color(0.3, 0.3, 0.3); 
 
             const Ray ray = camera->generateRay(x, y, width, height);
 
-            bool NO_BVH_TraceRay = false;
-
-            Intersection intersect = NO_BVH_TraceRay ? TraceRay_No_BVH(ray) : TraceRay(ray, Tree);
+            Intersection intersect = TraceRay(ray, Tree);
 
             if (intersect.hasIntersection()) 
             {
@@ -251,19 +194,4 @@ Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree
 
     // fill intersection base on Tracing result
     return minimizer.intersection;
-}
-
-
-Intersection Scene::TraceRay_No_BVH(const Ray& ray)
-{
-    float t = INF;
-    Intersection intersect;
-    // no BVH testing
-    for (auto obj : objects)
-    {
-        Intersection temp;
-        if (obj->intersect(ray, temp))
-            if (intersect.t == -1 || temp.t < intersect.t) intersect = temp;
-    }
-    return intersect;
 }
