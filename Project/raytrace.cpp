@@ -25,12 +25,7 @@
 #include "stb_image.h"
 #include "Timer.h"
 
-// A good quality *thread-safe* Mersenne Twister random number generator.
-#include <random>
-std::random_device device;
-std::mt19937_64 RNGen(device());
-std::uniform_real_distribution<> myrandom(0.0, 1.0);
-// Call myrandom(RNGen) to get a uniformly distributed random number in [0,1].
+
 
 Scene::Scene() 
 { 
@@ -102,17 +97,14 @@ void Scene::Command(const std::vector<std::string>& strings,
         currentMat = new Light(Vector3f(f[1], f[2], f[3])); }
    
     else if (c == "sphere") {
-        // RT version
         objects.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
     }
 
     else if (c == "box") {
-        // RT version
         objects.push_back(new Box(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), currentMat));
     }
 
     else if (c == "cylinder") {
-        // RT version
         objects.push_back(new Cylinder(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7], currentMat));
     }
 
