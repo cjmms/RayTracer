@@ -93,7 +93,7 @@ public:
     // The scene reader-parser will call the Command method with the
     // contents of each line in the scene file.
     void Command(const std::vector<std::string>& strings,
-                 const std::vector<float>& f);
+        const std::vector<float>& f);
 
     // To read a model file into the scene via ASSIMP, call ReadAssimpFile.  
     void ReadAssimpFile(const std::string& path, const Matrix4f& M);
@@ -106,6 +106,23 @@ public:
     // and return the image.  This is the Ray Tracer!
     void TraceImage(Color* image, const int pass);
 
-    Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree);
+    Vector3f TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree);
+
+
+    Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*>& Tree);
+
+
+    // tools
+    Vector3f EvalRadiance(const Intersection& intersect) const;
+
+    inline float PdfBrdf(Vector3f N, Vector3f SampleDir) const { return fabsf(N.dot(SampleDir)) / PI; }
+
+    Vector3f EvalScattering(Vector3f N, Vector3f SampleDir, Intersection& intersect) const;
+
+    Vector3f SampleBrdf(Vector3f N) const;
+
+    Vector3f SampleLobe(Vector3f N, float t1, float t2) const;
+
+    Vector3f applyWeight(Vector3f v, Vector3f W) const;
 };
 

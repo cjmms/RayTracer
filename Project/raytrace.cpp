@@ -25,6 +25,11 @@
 #include "stb_image.h"
 #include "Timer.h"
 
+#include <random>
+extern std::mt19937_64 RNGen;
+extern std::uniform_real_distribution<> myrandom;
+
+#define NUM_PASS 40
 
 
 Scene::Scene() 
@@ -97,6 +102,7 @@ void Scene::Command(const std::vector<std::string>& strings,
         currentMat = new Light(Vector3f(f[1], f[2], f[3])); }
    
     else if (c == "sphere") {
+        if (currentMat->isLight()) lights.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
         objects.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
     }
 
@@ -142,39 +148,45 @@ void Material::setTexture(const std::string path)
 void Scene::TraceImage(Color* image, const int pass)
 {
     KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
-    Timer timer;
+    //Timer timer;
+
+    for (int i = 0; i < NUM_PASS; ++i) {
+        std::cout << "Rendering " << i << "th pass" << std::endl;
 
 #pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
-    for (int y = 0; y < height; y++) {
+        for (int y = 0; y < height; y++) {
 
-        fprintf(stderr, "Rendering %4d\r", y);
-        for (int x = 0; x < width; x++) {
-            Color color = Color(0.3, 0.3, 0.3); 
+            fprintf(stderr, "Rendering %4d\r", y);
+            for (int x = 0; x < width; x++) {
+                Color color = Color(0.3, 0.3, 0.3);
 
-            const Ray ray = camera->generateRay(x, y, width, height);
+                const Ray ray = camera->generateRay(x, y, width, height);
+                /*
+                Intersection intersect = TraceRay(ray, Tree);
 
-            Intersection intersect = TraceRay(ray, Tree);
+                if (intersect.hasIntersection())
+                {
+                    //float r = fabsf(intersect.normal.x());
+                    //float g = fabsf(intersect.normal.y());
+                    //float b = fabsf(intersect.normal.z());
+                    //color = Vector3f(r, g, b);
 
-            if (intersect.hasIntersection()) 
-            {
-                //float r = fabsf(intersect.normal.x());
-                //float g = fabsf(intersect.normal.y());
-                //float b = fabsf(intersect.normal.z());
-                //color = Vector3f(r, g, b);
+                    //color = Color((intersect.t - 4.0f) / 3.0f); // depth
 
-                color = Color((intersect.t - 4.0f) / 3.0f); // depth
-            
-                //color = Color(intersect.shape->mat->Kd);    // material testing
-            
-                //color = Color(1.0, 0.0, 0.0); // intersection test
+                    color = Color(intersect.shape->mat->Kd);    // material testing
+
+                    //color = Color(1.0, 0.0, 0.0); // intersection test
+                }
+
+                image[y * width + x] = color;
+                */
+                
+                image[y * width + x] += Color(TracePath(ray, Tree) / NUM_PASS);
             }
-
-            image[y * width + x] = color;
         }
     }
-
-    std::cout << "Total time: " << timer.elapsed() << std::endl;
-    fprintf(stderr, "\n");
+    //std::cout << "Total time: " << timer.elapsed() << std::endl;
+    //fprintf(stderr, "\n");
 }
 
 
@@ -186,4 +198,95 @@ Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree
 
     // fill intersection base on Tracing result
     return minimizer.intersection;
+}
+
+
+
+
+
+Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
+{
+    Vector3f C(0, 0, 0);
+    Vector3f W(1, 1, 1);
+
+    // inital ray
+    Intersection P = TraceRay(ray, Tree);
+
+    if (!P.hasIntersection()) return C;     // no intersection
+
+    if (P.shape->mat->isLight()) return EvalRadiance(P);    // hit light source
+
+    float RussianRoulette = 0.8f;
+    while (myrandom(RNGen) <= RussianRoulette)
+    {
+        // Extend path
+        Vector3f N = P.normal;
+
+        Vector3f SampleDir = SampleBrdf(N);     // sampled direction
+        Ray r(P.position, SampleDir);           // new ray
+
+        Intersection Q = TraceRay(r, Tree);
+
+        if (!Q.hasIntersection()) break;
+
+        Vector3f f = EvalScattering(N, SampleDir, P);
+        float p = PdfBrdf(N, SampleDir);
+
+        if (p < 0.0000001f) break;
+
+        W = W.cwiseProduct( f / p);
+
+        // Implicit light connection
+        if (Q.shape->mat->isLight()) 
+        {
+            C += applyWeight(EvalRadiance(Q), W);
+            break;
+        }
+
+        // step forward
+        P = Q;
+    }
+
+    return C;
+}
+
+
+Vector3f Scene::EvalScattering(Vector3f N, Vector3f SampleDir, Intersection& intersect) const
+{
+    Vector3f Kd = intersect.shape->mat->Kd;
+    return fabsf(N.dot(SampleDir))* Kd / PI;
+}
+
+
+
+Vector3f Scene::SampleBrdf(Vector3f N) const
+{
+    float t1 = myrandom(RNGen); // first unifromly distributed random number
+    float t2 = myrandom(RNGen); // first unifromly distributed random number
+
+    return SampleLobe(N, t1, 2 * PI * t2);
+}
+
+
+Vector3f Scene::SampleLobe(Vector3f N, float t1, float t2) const
+{
+    float s = sqrtf(1 - t1 * t1);
+    Vector3f K(s * cosf(t2), s * sinf(t2), t1);
+    Quaternionf q = Quaternionf::FromTwoVectors(Vector3f::UnitZ(), N);
+    return q._transformVector(K);
+}
+
+
+Vector3f Scene::EvalRadiance(const Intersection& intersect) const 
+{ 
+    return intersect.shape->mat->Kd; 
+}
+
+
+Vector3f Scene::applyWeight(Vector3f v, Vector3f W) const
+{
+    float x = v.x() * W.x();
+    float y = v.y() * W.y();
+    float z = v.z() * W.z();
+    return Vector3f(x, y, z);
 }
