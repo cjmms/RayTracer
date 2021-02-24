@@ -84,6 +84,7 @@ public:
     int width, height;
     Material* currentMat;
     Camera* camera;
+    float RussianRoulette;
 
     std::vector<Shape*> objects;
     std::vector<Shape*> lights;
@@ -134,3 +135,4 @@ public:
     
 };
 
+void PrintVector(std::string str, Vector3f v);

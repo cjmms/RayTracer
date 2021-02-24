@@ -163,7 +163,7 @@ Intersection Sphere::SampleSphere()
 	float a = 2 * PI * t2;
 
 	Vector3f N(r * cosf(a), r * sinf(a), z);
-	Vector3f P = center + radius * N;
+	Vector3f P = center + radius * N.normalized();
 
 	return Intersection(this, P, N);
 }

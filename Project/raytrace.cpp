@@ -29,10 +29,11 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 10
+#define NUM_PASS 1
 
 
 Scene::Scene() 
+    : RussianRoulette(0.8f)
 { 
     camera = new Camera();
 }
@@ -148,26 +149,22 @@ void Material::setTexture(const std::string path)
 void Scene::TraceImage(Color* image, const int pass)
 {
     KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
-    //Timer timer;
 
-    for (int i = 0; i < NUM_PASS; ++i) {
+    for (int i = 0; i < NUM_PASS; ++i) 
+    {
         std::cout << "Rendering " << i << "th pass" << std::endl;
 
-#pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
-        for (int y = 0; y < height; y++) {
-
+        #pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
+        for (int y = 0; y < height; y++) 
+        {
             fprintf(stderr, "Rendering %4d\r", y);
-            for (int x = 0; x < width; x++) {
-
+            for (int x = 0; x < width; x++) 
+            {
                 const Ray ray = camera->generateRay(x, y, width, height);
-
-                
                 image[y * width + x] += Color(TracePath(ray, Tree) / NUM_PASS);
             }
         }
     }
-    //std::cout << "Total time: " << timer.elapsed() << std::endl;
-    //fprintf(stderr, "\n");
 }
 
 
@@ -187,37 +184,32 @@ Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree
 
 Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
 {
-    Vector3f C(0, 0, 0);
-    Vector3f W(1, 1, 1);
+    Vector3f Color(0, 0, 0);
+    Vector3f Weight(1, 1, 1);
 
     // inital ray
     Intersection P = TraceRay(ray, Tree);
 
     Vector3f N = P.normal;
 
-    if (!P.hasIntersection()) return C;     // no intersection
-
+    if (!P.hasIntersection()) return Color;     // no intersection
     if (P.shape->mat->isLight()) return EvalRadiance(P);    // hit light source
 
-    float RussianRoulette = 0.8f;
     while (myrandom(RNGen) <= RussianRoulette)
-    {
-        /*
-        // Explicit light connection
-        Intersection L = SampleLight();
+    {     
+        Intersection L = SampleLight();     // Explicit light connection
         float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
-        Vector3f SampleDir = L.position - P.position;   // direction, from current obj to light obj
 
         if (p > 0.0f) {
-            Intersection I = TraceRay(Ray(P.position, SampleDir), Tree);   // trace a ray from current obj to random light
+            Vector3f Obj2LightDir = L.position - P.position;   // direction, from current obj to light obj
+            Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
 
             if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
             {
-                W = W.cwiseProduct(EvalScattering(N, SampleDir, I) / p);
-                C += 0.5f * applyWeight(EvalRadiance(I), W);
+                Weight = Weight.cwiseProduct(EvalScattering(N, Obj2LightDir, I) / p);
+                Color += 0.5f * applyWeight(EvalRadiance(I), Weight);
             }
         }
-        */
         
 
         // Extend path
@@ -232,15 +224,15 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
             float p = PdfBrdf(N, SampleDir);
             if (p < 0.0000001f) break;
 
-            W = W.cwiseProduct(EvalScattering(N, SampleDir, P) / p);
-            C += 0.5f * applyWeight(EvalRadiance(Q), W);
+            Weight = Weight.cwiseProduct(EvalScattering(N, SampleDir, P) / p);
+            Color += 0.5f * applyWeight(EvalRadiance(Q), Weight);
             break;
         }
 
         P = Q;      // step forward
     }
 
-    return C;
+    return Color;
 }
 
 
@@ -309,4 +301,12 @@ float Scene::PdfLight(Intersection& intersect) const
     Sphere *sphere = static_cast<Sphere*>(intersect.shape);     // all light sources are sphere
     float area = 4 * PI * sphere->radius * sphere->radius;      // area of sphere
     return 1.0f / (lights.size() * area);
+}
+
+
+
+
+void PrintVector(std::string str, Vector3f v)
+{
+    std::cout << str << ", x: " << v.x() << ", y: " << v.y() << ", z: " << v.z() << std::endl;
 }
