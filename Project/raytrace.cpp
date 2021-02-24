@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 40
+#define NUM_PASS 20
 
 
 Scene::Scene() 
@@ -158,28 +158,9 @@ void Scene::TraceImage(Color* image, const int pass)
 
             fprintf(stderr, "Rendering %4d\r", y);
             for (int x = 0; x < width; x++) {
-                Color color = Color(0.3, 0.3, 0.3);
 
                 const Ray ray = camera->generateRay(x, y, width, height);
-                /*
-                Intersection intersect = TraceRay(ray, Tree);
 
-                if (intersect.hasIntersection())
-                {
-                    //float r = fabsf(intersect.normal.x());
-                    //float g = fabsf(intersect.normal.y());
-                    //float b = fabsf(intersect.normal.z());
-                    //color = Vector3f(r, g, b);
-
-                    //color = Color((intersect.t - 4.0f) / 3.0f); // depth
-
-                    color = Color(intersect.shape->mat->Kd);    // material testing
-
-                    //color = Color(1.0, 0.0, 0.0); // intersection test
-                }
-
-                image[y * width + x] = color;
-                */
                 
                 image[y * width + x] += Color(TracePath(ray, Tree) / NUM_PASS);
             }
@@ -212,6 +193,8 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
     // inital ray
     Intersection P = TraceRay(ray, Tree);
 
+    Vector3f N = P.normal;
+
     if (!P.hasIntersection()) return C;     // no intersection
 
     if (P.shape->mat->isLight()) return EvalRadiance(P);    // hit light source
@@ -219,32 +202,40 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
     float RussianRoulette = 0.8f;
     while (myrandom(RNGen) <= RussianRoulette)
     {
+        
+        // Explicit light connection
+        Vector3f L = SampleLight();
+        float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
+
+        if (p > 0.0f) {
+            Intersection I = TraceRay(Ray(P.position, L), Tree);   // trace a ray from current obj to random light
+
+            if (I.hasIntersection() && I.position == L)     // if intersection exists and is as as position in light
+            {
+                W = W.cwiseProduct(EvalScattering(N, L, I) / p);
+                C += 0.5f * applyWeight(EvalRadiance(I), W);
+            }
+        }
+        
+
         // Extend path
-        Vector3f N = P.normal;
-
         Vector3f SampleDir = SampleBrdf(N);     // sampled direction
-        Ray r(P.position, SampleDir);           // new ray
 
-        Intersection Q = TraceRay(r, Tree);
-
+        Intersection Q = TraceRay(Ray(P.position, SampleDir), Tree);
         if (!Q.hasIntersection()) break;
-
-        Vector3f f = EvalScattering(N, SampleDir, P);
-        float p = PdfBrdf(N, SampleDir);
-
-        if (p < 0.0000001f) break;
-
-        W = W.cwiseProduct( f / p);
 
         // Implicit light connection
         if (Q.shape->mat->isLight()) 
         {
-            C += applyWeight(EvalRadiance(Q), W);
+            float p = PdfBrdf(N, SampleDir);
+            if (p < 0.0000001f) break;
+
+            W = W.cwiseProduct(EvalScattering(N, SampleDir, P) / p);
+            C += 0.5f * applyWeight(EvalRadiance(Q), W);
             break;
         }
 
-        // step forward
-        P = Q;
+        P = Q;      // step forward
     }
 
     return C;
