@@ -111,7 +111,7 @@ public:
     Vector3f TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree);
 
 
-    Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*>& Tree);
+    Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*>& Tree) const;
 
 
     // tools
@@ -125,14 +125,15 @@ public:
 
     Vector3f SampleLobe(Vector3f N, float t1, float t2) const;
 
-    Vector3f applyWeight(Vector3f v, Vector3f W) const;
-
-    Intersection SampleLight();
-
-    float GeometryFactor(Intersection &A, Intersection &B);
+    Intersection SampleLight() const;
     
     float PdfLight(Intersection& intersect) const;
+
+    void ExplicitLight(Vector3f &weight, Vector3f &color, Intersection& P, KdBVH<float, 3, Shape*> Tree) const;
     
 };
+
+float GeometryFactor(Intersection& A, Intersection& B);
+
 
 void PrintVector(std::string str, Vector3f v);

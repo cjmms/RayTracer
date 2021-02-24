@@ -47,7 +47,7 @@ float Minimizer::minimumOnVolume(const Bbox& box)
 
 	// fill intersection
 	if (interval.t0 > interval.t1) return INF;	// No intersection
-	else if (interval.t1 < 0.0f) return INF;	// intersection behind ray
-	else if (interval.t0 < 0.0f && interval.t1 > 0.0f) return 0.0f;	// intersection inside box
+	else if (interval.t1 < Epsilon) return INF;	// intersection behind ray
+	else if (interval.t0 < Epsilon && interval.t1 > Epsilon) return 0.0f;	// intersection inside box
 	else return interval.t0 > interval.t1 ? interval.t1 : interval.t0;	// return smallest intersection
 }

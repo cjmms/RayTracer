@@ -6,6 +6,7 @@
 #include "Camera.h"
 
 const float PI = 3.1415f;
+#define Epsilon 0.0001f
 extern const float Radians;    // Convert degrees to radians
 
 typedef Eigen::AlignedBox<float, 3> Bbox;  // The BV type provided by Eigen

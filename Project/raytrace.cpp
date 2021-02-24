@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 1
+#define NUM_PASS 8
 
 
 Scene::Scene() 
@@ -168,7 +168,7 @@ void Scene::TraceImage(Color* image, const int pass)
 }
 
 
-Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree)
+Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree) const
 {
     Minimizer minimizer(ray);
 
@@ -187,45 +187,28 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
     Vector3f Color(0, 0, 0);
     Vector3f Weight(1, 1, 1);
 
-    // inital ray
-    Intersection P = TraceRay(ray, Tree);
-
-    Vector3f N = P.normal;
+    Intersection P = TraceRay(ray, Tree);   // inital ray
 
     if (!P.hasIntersection()) return Color;     // no intersection
     if (P.shape->mat->isLight()) return EvalRadiance(P);    // hit light source
 
     while (myrandom(RNGen) <= RussianRoulette)
     {     
-        Intersection L = SampleLight();     // Explicit light connection
-        float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
+        ExplicitLight(Weight, Color, P, Tree);  
 
-        if (p > 0.0f) {
-            Vector3f Obj2LightDir = L.position - P.position;   // direction, from current obj to light obj
-            Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
+        const Vector3f SampleDir = SampleBrdf(P.normal);     // sampled direction
 
-            if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
-            {
-                Weight = Weight.cwiseProduct(EvalScattering(N, Obj2LightDir, I) / p);
-                Color += 0.5f * applyWeight(EvalRadiance(I), Weight);
-            }
-        }
-        
-
-        // Extend path
-        Vector3f SampleDir = SampleBrdf(N);     // sampled direction
-
-        Intersection Q = TraceRay(Ray(P.position, SampleDir), Tree);
+        Intersection Q = TraceRay(Ray(P.position, SampleDir), Tree); // Extend path
         if (!Q.hasIntersection()) break;
 
-        // Implicit light connection
-        if (Q.shape->mat->isLight()) 
-        {
-            float p = PdfBrdf(N, SampleDir);
-            if (p < 0.0000001f) break;
+        float p = PdfBrdf(P.normal, SampleDir);
+        if (p < Epsilon) break;
 
-            Weight = Weight.cwiseProduct(EvalScattering(N, SampleDir, P) / p);
-            Color += 0.5f * applyWeight(EvalRadiance(Q), Weight);
+        Weight = Weight.cwiseProduct(EvalScattering(P.normal, SampleDir, P) / p);
+
+        if (Q.shape->mat->isLight())    // Implicit light connection
+        {      
+            Color += 0.5f * EvalRadiance(Q).cwiseProduct(Weight);
             break;
         }
 
@@ -268,16 +251,7 @@ Vector3f Scene::EvalRadiance(const Intersection& intersect) const
 }
 
 
-Vector3f Scene::applyWeight(Vector3f v, Vector3f W) const
-{
-    float x = v.x() * W.x();
-    float y = v.y() * W.y();
-    float z = v.z() * W.z();
-    return Vector3f(x, y, z);
-}
-
-
-Intersection Scene::SampleLight()
+Intersection Scene::SampleLight() const
 {
     // Choose one light(uniformly) randomly.
     int index = myrandom(RNGen) * lights.size();
@@ -287,7 +261,7 @@ Intersection Scene::SampleLight()
 }
 
 
-float Scene::GeometryFactor(Intersection& A, Intersection& B)
+float GeometryFactor(Intersection& A, Intersection& B)
 {
     Vector3f D = A.position - B.position;
     float DdotD = D.dot(D);
@@ -299,9 +273,29 @@ float Scene::GeometryFactor(Intersection& A, Intersection& B)
 float Scene::PdfLight(Intersection& intersect) const
 {
     Sphere *sphere = static_cast<Sphere*>(intersect.shape);     // all light sources are sphere
-    float area = 4 * PI * sphere->radius * sphere->radius;      // area of sphere
+    float area = 4.0f * PI * sphere->radius * sphere->radius;      // area of sphere
     return 1.0f / (lights.size() * area);
 }
+
+
+
+void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, KdBVH<float, 3, Shape*> Tree) const
+{
+    Intersection L = SampleLight();     // Explicit light connection
+    float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
+
+    if (p > 0.0f) {
+        Vector3f Obj2LightDir = L.position - P.position;   // direction, from current obj to light obj
+        Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
+
+        if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
+        {
+            Vector3f f = EvalScattering(P.normal, Obj2LightDir, I);
+            color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(I));
+        }
+    }
+}
+
 
 
 

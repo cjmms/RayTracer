@@ -111,14 +111,14 @@ bool Sphere::intersect(const Ray ray, Intersection& intersection)
 	const float discriminant = b * b - 4 * c;
 
 	// no intersection
-	if (discriminant < 0) return false;
+	if (discriminant < Epsilon) return false;
 
 	// roots calculation
 	const float t1 = (-b + sqrtf(discriminant)) / 2;
 	const float t2 = (-b - sqrtf(discriminant)) / 2;
 
 
-	if (t1 < 0 && t2 < 0) return false;
+	if (t1 < Epsilon && t2 < Epsilon) return false;
 
 	// intersection points
 	const Vector3f p1 = ray.point + t1 * V;
@@ -204,10 +204,10 @@ bool Box::intersect(const Ray ray, Intersection& intersection)
 	if (interval.t0 > interval.t1) return false;	// No intersection
 	else
 	{		
-		if (interval.t0 < 0 && interval.t1 < 0) return false;	// intersection behind ray
+		if (interval.t0 < Epsilon && interval.t1 < Epsilon) return false;	// intersection behind ray
 
 		// since t0 is smaller, if t0 is positive, t0 is intersection, vice versa
-		if (interval.t0 > 0) intersection.set(this, ray.evl(interval.t0), interval.N0, interval.t0);
+		if (interval.t0 > Epsilon) intersection.set(this, ray.evl(interval.t0), interval.N0, interval.t0);
 		else intersection.set(this, ray.evl(interval.t1), interval.N1, interval.t1);
 
 		return true;
@@ -246,7 +246,7 @@ Interval intersectSlab(const Ray ray, Vector3f N, float d0, float d1)
 		const float s0 = NdotQ + d0;
 		const float s1 = NdotQ + d1;
 
-		if ((s0 > 0 && s1 > 0) || (s0 < 0 && s1 < 0))	// same sign, not in between of slabs
+		if ((s0 > Epsilon && s1 > Epsilon) || (s0 < Epsilon && s1 < Epsilon))	// same sign, not in between of slabs
 			return Interval(0, N, -1, N);	// no intersection to Box, N doesn't matter
 		else // in between of slabs
 			return Interval();	// [0, Infinity]
@@ -263,7 +263,7 @@ Interval intersectCylinder(Vector3f D, Vector3f Q, float radius, Quaternionf q)
 	const float determinant = b * b - 4.0f * a * c;
 
 	Vector3f N;
-	if (determinant < 0) return Interval(0, N, -1, N);	// no intersection
+	if (determinant < Epsilon) return Interval(0, N, -1, N);	// no intersection
 
 	const float t1 = (-b + sqrtf(determinant)) / 2 / a;
 	const float t2 = (-b - sqrtf(determinant)) / 2 / a;
