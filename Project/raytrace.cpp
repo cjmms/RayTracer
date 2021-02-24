@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 20
+#define NUM_PASS 10
 
 
 Scene::Scene() 
@@ -202,20 +202,22 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
     float RussianRoulette = 0.8f;
     while (myrandom(RNGen) <= RussianRoulette)
     {
-        
+        /*
         // Explicit light connection
-        Vector3f L = SampleLight();
+        Intersection L = SampleLight();
         float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
+        Vector3f SampleDir = L.position - P.position;   // direction, from current obj to light obj
 
         if (p > 0.0f) {
-            Intersection I = TraceRay(Ray(P.position, L), Tree);   // trace a ray from current obj to random light
+            Intersection I = TraceRay(Ray(P.position, SampleDir), Tree);   // trace a ray from current obj to random light
 
-            if (I.hasIntersection() && I.position == L)     // if intersection exists and is as as position in light
+            if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
             {
-                W = W.cwiseProduct(EvalScattering(N, L, I) / p);
+                W = W.cwiseProduct(EvalScattering(N, SampleDir, I) / p);
                 C += 0.5f * applyWeight(EvalRadiance(I), W);
             }
         }
+        */
         
 
         // Extend path
@@ -280,4 +282,31 @@ Vector3f Scene::applyWeight(Vector3f v, Vector3f W) const
     float y = v.y() * W.y();
     float z = v.z() * W.z();
     return Vector3f(x, y, z);
+}
+
+
+Intersection Scene::SampleLight()
+{
+    // Choose one light(uniformly) randomly.
+    int index = myrandom(RNGen) * lights.size();
+
+    // Choose a uniformly distributed point on the light, return intersection
+    return static_cast<Sphere*>(lights[index])->SampleSphere();
+}
+
+
+float Scene::GeometryFactor(Intersection& A, Intersection& B)
+{
+    Vector3f D = A.position - B.position;
+    float DdotD = D.dot(D);
+
+    return fabsf(A.normal.dot(D) * B.normal.dot(D) / (DdotD * DdotD));
+}
+
+
+float Scene::PdfLight(Intersection& intersect) const
+{
+    Sphere *sphere = static_cast<Sphere*>(intersect.shape);     // all light sources are sphere
+    float area = 4 * PI * sphere->radius * sphere->radius;      // area of sphere
+    return 1.0f / (lights.size() * area);
 }

@@ -2,6 +2,12 @@
 #include <cmath>
 
 
+#include <random>
+extern std::mt19937_64 RNGen;
+extern std::uniform_real_distribution<> myrandom;
+
+
+
 Interval::Interval(float t0, Vector3f N0, float t1, Vector3f N1)
 {
 		this->t0 = t0;
@@ -61,9 +67,14 @@ float Ray::dis(Vector3f p)
 Intersection::Intersection(Shape* shape, float t)
 	:shape(shape), t(t)
 {
-
-
 }
+
+
+Intersection::Intersection(Shape* shape, Vector3f position, Vector3f normal)
+	:shape(shape), position(position), normal(normal.normalized())
+{
+}
+
 
 
 void Intersection::set(Shape* shape, Vector3f position, Vector3f normal, float t)
@@ -138,6 +149,28 @@ bool Sphere::intersect(const Ray ray, Intersection& intersection)
 
 	return true;
 }
+
+
+
+Intersection Sphere::SampleSphere()
+{
+	float t1 = myrandom(RNGen); // first unifromly distributed random number
+	float t2 = myrandom(RNGen); // first unifromly distributed random number
+
+	float z = 2 * t1 - 1.0f;
+	float r = sqrtf((1 - z) * (1 - z));
+
+	float a = 2 * PI * t2;
+
+	Vector3f N(r * cosf(a), r * sinf(a), z);
+	Vector3f P = center + radius * N;
+
+	return Intersection(this, P, N);
+}
+
+
+
+
 
 
 

@@ -9,7 +9,8 @@ class Shape;
 class Intersection;
 class Ray;
 
-const float PI = 3.14159f;
+
+extern const float PI;
 const float Radians = PI / 180.0f;    // Convert degrees to radians
 
 ////////////////////////////////////////////////////////////////////////
@@ -124,5 +125,12 @@ public:
     Vector3f SampleLobe(Vector3f N, float t1, float t2) const;
 
     Vector3f applyWeight(Vector3f v, Vector3f W) const;
+
+    Intersection SampleLight();
+
+    float GeometryFactor(Intersection &A, Intersection &B);
+    
+    float PdfLight(Intersection& intersect) const;
+    
 };
 

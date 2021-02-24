@@ -5,7 +5,7 @@
 #include "glm/glm/glm.hpp"
 #include "Camera.h"
 
-extern const float PI;
+const float PI = 3.1415f;
 extern const float Radians;    // Convert degrees to radians
 
 typedef Eigen::AlignedBox<float, 3> Bbox;  // The BV type provided by Eigen
@@ -62,6 +62,7 @@ public:
 public:
 	Intersection() :shape(nullptr), t(-1) {};
 	Intersection(Shape *shape, float t);
+	Intersection(Shape* shape, Vector3f position, Vector3f normal);
 
 	bool hasIntersection() { return -1.0f != t; }
 
@@ -100,6 +101,9 @@ public:
 	inline Vector3f getNormal(Vector3f p) { return p - center; }
 
 	bool intersect(const Ray ray, Intersection& intersection) override;
+
+	// choose a uniform distributed point on the sphere
+	Intersection SampleSphere();
 
 	Bbox bbox() const override;
 };
