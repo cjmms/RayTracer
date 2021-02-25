@@ -41,10 +41,6 @@
 *.xcodeproj
 
 # Windows crap
-*.sln
-*.vcxproj
-*.vcxproj.filters
-*.vcxproj.user
 **/.vs/
 **/Debug/
 **/Release/
