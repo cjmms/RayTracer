@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 8
+#define NUM_PASS 64
 
 
 Scene::Scene() 
@@ -194,7 +194,7 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
 
     while (myrandom(RNGen) <= RussianRoulette)
     {     
-        ExplicitLight(Weight, Color, P, Tree);  
+        //ExplicitLight(Weight, Color, P, Tree);  
 
         const Vector3f SampleDir = SampleBrdf(P.normal);     // sampled direction
 
@@ -232,7 +232,7 @@ Vector3f Scene::SampleBrdf(Vector3f N) const
     float t1 = myrandom(RNGen); // first unifromly distributed random number
     float t2 = myrandom(RNGen); // first unifromly distributed random number
 
-    return SampleLobe(N, t1, 2 * PI * t2);
+    return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
 }
 
 
@@ -291,7 +291,7 @@ void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, Kd
         if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
         {
             Vector3f f = EvalScattering(P.normal, Obj2LightDir, I);
-            color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(I));
+            color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L));
         }
     }
 }

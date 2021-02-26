@@ -158,7 +158,7 @@ Intersection Sphere::SampleSphere()
 	float t2 = myrandom(RNGen); // first unifromly distributed random number
 
 	float z = 2 * t1 - 1.0f;
-	float r = sqrtf((1 - z) * (1 - z));
+	float r = sqrtf(1 - z*z);
 
 	float a = 2 * PI * t2;
 
