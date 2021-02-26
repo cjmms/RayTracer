@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 200
+#define NUM_PASS 4000
 
 
 Scene::Scene() 
@@ -298,7 +298,7 @@ void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, Kd
 
         if (I.hasIntersection() && compareVector(I.position, L.position))     // if intersection exists and is as as position in light
         {
-            Vector3f f = EvalScattering(P.normal, Obj2LightDir, I);
+            Vector3f f = EvalScattering(P.normal, Obj2LightDir, P);
             color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L));
         }
     }
