@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 64
+#define NUM_PASS 200
 
 
 Scene::Scene() 
@@ -194,7 +194,7 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
 
     while (myrandom(RNGen) <= RussianRoulette)
     {     
-        //ExplicitLight(Weight, Color, P, Tree);  
+        ExplicitLight(Weight, Color, P, Tree);  
 
         const Vector3f SampleDir = SampleBrdf(P.normal);     // sampled direction
 
@@ -278,6 +278,14 @@ float Scene::PdfLight(Intersection& intersect) const
 }
 
 
+bool compareVector(Vector3f a, Vector3f b)
+{
+    bool x = fabsf(a[0] - b[0]) < Epsilon;
+    bool y = fabsf(a[1] - b[1]) < Epsilon;
+    bool z = fabsf(a[2] - b[2]) < Epsilon;
+    return x && y && z;
+}
+
 
 void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, KdBVH<float, 3, Shape*> Tree) const
 {
@@ -288,7 +296,7 @@ void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, Kd
         Vector3f Obj2LightDir = L.position - P.position;   // direction, from current obj to light obj
         Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
 
-        if (I.hasIntersection() && I.position == L.position)     // if intersection exists and is as as position in light
+        if (I.hasIntersection() && compareVector(I.position, L.position))     // if intersection exists and is as as position in light
         {
             Vector3f f = EvalScattering(P.normal, Obj2LightDir, I);
             color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L));
