@@ -80,6 +80,11 @@ public:
 
 
 class Scene {
+private:
+    Vector3f MidVector(Vector3f ViewingDir, Vector3f LightDir) const;
+    float ProbChooseDiffuse(const Intersection& intersect) const;
+    float ProbChooseSpecular(const Intersection& intersect) const;
+
 public:
     int width, height;
     Material* currentMat;
@@ -117,23 +122,39 @@ public:
     // tools
     Vector3f EvalRadiance(const Intersection& intersect) const;
 
-    inline float PdfBrdf(Vector3f N, Vector3f SampleDir) const { return fabsf(N.dot(SampleDir)) / PI; }
+    inline float PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const;
 
-    Vector3f EvalScattering(Vector3f N, Vector3f SampleDir, Intersection& intersect) const;
+    Vector3f EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect) const;
 
-    Vector3f SampleBrdf(Vector3f N) const;
+    Vector3f SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& intersect) const;
 
     Vector3f SampleLobe(Vector3f N, float t1, float t2) const;
 
     Intersection SampleLight() const;
+
+   
     
     float PdfLight(Intersection& intersect) const;
 
-    void ExplicitLight(Vector3f &weight, Vector3f &color, Intersection& P, KdBVH<float, 3, Shape*> Tree) const;
+    void ExplicitLight(Vector3f ViewingDir, Vector3f &weight, Vector3f &color, Intersection& P, KdBVH<float, 3, Shape*> Tree) const;
     
 };
 
+
 float GeometryFactor(Intersection& A, Intersection& B);
+
+float DistributionFunction(Vector3f m, const Intersection& intersect);
+
+float DistributionPhong(Vector3f m, const Intersection& intersect);
+
+Vector3f Fresnel(float d, const Intersection& intersect);
+
+// This is a part of Cook-Torrance
+float GeometryFunction(Vector3f ViewingDir, Vector3f LightDir, Vector3f m, const Intersection& intersect);
+
+float G1(Vector3f dir, Vector3f m, const Intersection& intersect);
+
+
 
 
 void PrintVector(std::string str, Vector3f v);

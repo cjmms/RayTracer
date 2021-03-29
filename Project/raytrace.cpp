@@ -29,11 +29,11 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 4000
+#define NUM_PASS 200
 
 
 Scene::Scene() 
-    : RussianRoulette(0.8f)
+    : RussianRoulette(0.44)
 { 
     camera = new Camera();
 }
@@ -192,47 +192,97 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
     if (!P.hasIntersection()) return Color;     // no intersection
     if (P.shape->mat->isLight()) return EvalRadiance(P);    // hit light source
 
+    Vector3f ViewingDir = -ray.direction;       // preparation for reflection
+
     while (myrandom(RNGen) <= RussianRoulette)
     {     
-        ExplicitLight(Weight, Color, P, Tree);  
+        // Explicit Light Connection
+        ExplicitLight(ViewingDir, Weight, Color, P, Tree);
 
-        const Vector3f SampleDir = SampleBrdf(P.normal);     // sampled direction
+        // Extend Path
+        const Vector3f SampleDir = SampleBrdf(ViewingDir, P.normal, P).normalized();     // sampled direction
 
         Intersection Q = TraceRay(Ray(P.position, SampleDir), Tree); // Extend path
         if (!Q.hasIntersection()) break;
 
-        float p = PdfBrdf(P.normal, SampleDir);
+        float p = PdfBrdf(ViewingDir, P.normal, SampleDir, P);
         if (p < Epsilon) break;
 
-        Weight = Weight.cwiseProduct(EvalScattering(P.normal, SampleDir, P) / p);
+        Weight = Weight.cwiseProduct(EvalScattering(ViewingDir, P.normal, SampleDir, P) / p);
 
+        // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
         {      
             Color += 0.5f * EvalRadiance(Q).cwiseProduct(Weight);
             break;
         }
 
+        // Step Forward
         P = Q;      // step forward
+        ViewingDir = -SampleDir.normalized();
     }
 
     return Color;
 }
 
 
-Vector3f Scene::EvalScattering(Vector3f N, Vector3f SampleDir, Intersection& intersect) const
+Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect) const
 {
     Vector3f Kd = intersect.shape->mat->Kd;
-    return fabsf(N.dot(SampleDir))* Kd / PI;
+    Vector3f DiffusePart = Kd / PI;     // Lambert
+
+    Vector3f m = MidVector(ViewingDir, SampleDir);
+
+    float D = DistributionFunction(m, intersect);
+    float G = GeometryFunction(ViewingDir, SampleDir, m, intersect);
+    Vector3f F = Fresnel(m.dot(SampleDir), intersect);
+
+    float denominator = 4 * fabsf(ViewingDir.dot(N)) * fabsf(SampleDir.dot(N));
+
+    Vector3f SpecularPart = D * G * F / denominator;    // Cook-Torrance
+
+    //PrintVector("SampleDir: ", SampleDir);
+    //PrintVector("ViewDir: ", ViewingDir);
+    //PrintVector("m: ", m);
+    //std::cout << "M dot sample: " << m.dot(SampleDir) << std::endl;
+    /*
+    if (F[0] < 0 || F[1] < 0 || F[2] < 0)
+    {
+        std::cout << "F Part less than 0" << std::endl;
+        std::cout << "F: " << F[0] << ", " << F[1] << ", " << F[2] << std::endl;
+    }*/
+    /*
+    if (SpecularPart[0] < 0 || SpecularPart[1] < 0 || SpecularPart[2] < 0)
+    {
+        std::cout << "Specular Part less than 0" << std::endl;
+    }
+
+    if (D < 0) std::cout << "D less than 0" << std::endl;
+    if (G < 0) std::cout << "G less than 0" << std::endl;
+    if (denominator < 0) std::cout << "denominator less than 0" << std::endl;
+    */
+    
+    return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
 }
 
 
-
-Vector3f Scene::SampleBrdf(Vector3f N) const
+// TODO
+Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& intersect) const
 {
     float t1 = myrandom(RNGen); // first unifromly distributed random number
     float t2 = myrandom(RNGen); // first unifromly distributed random number
 
-    return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
+    if (myrandom(RNGen) < ProbChooseDiffuse(intersect)) // Diffuse
+    {
+        return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
+    }
+    else   // reflection    
+    {
+        // since D uses Phong Distribution
+        float cosTheta = pow(t1, 1 / (intersect.shape->mat->alpha + 1));
+        Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2);
+        return 2.0f * ViewDir.dot(m) * m - ViewDir;
+    }
 }
 
 
@@ -287,18 +337,18 @@ bool compareVector(Vector3f a, Vector3f b)
 }
 
 
-void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, KdBVH<float, 3, Shape*> Tree) const
+void Scene::ExplicitLight(Vector3f ViewingDir, Vector3f& weight, Vector3f& color, Intersection &P, KdBVH<float, 3, Shape*> Tree) const
 {
     Intersection L = SampleLight();     // Explicit light connection
     float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
 
     if (p > 0.0f) {
-        Vector3f Obj2LightDir = L.position - P.position;   // direction, from current obj to light obj
+        Vector3f Obj2LightDir = (L.position - P.position).normalized();   // direction, from current obj to light obj
         Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
 
         if (I.hasIntersection() && compareVector(I.position, L.position))     // if intersection exists and is as as position in light
         {
-            Vector3f f = EvalScattering(P.normal, Obj2LightDir, P);
+            Vector3f f = EvalScattering(ViewingDir, P.normal, Obj2LightDir, P);
             color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L));
         }
     }
@@ -311,4 +361,108 @@ void Scene::ExplicitLight(Vector3f& weight, Vector3f& color, Intersection &P, Kd
 void PrintVector(std::string str, Vector3f v)
 {
     std::cout << str << ", x: " << v.x() << ", y: " << v.y() << ", z: " << v.z() << std::endl;
+}
+
+
+float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const
+{ 
+    float ProbDiffuse = ProbChooseDiffuse(intersect);
+
+    float ProbSpecular = ProbChooseSpecular(intersect);
+
+    float diffuse = fabsf(N.dot(SampleDir)) / PI;
+
+    Vector3f m = MidVector(ViewingDir, SampleDir);
+    float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4 * SampleDir.dot(m));
+
+    return ProbDiffuse * diffuse + ProbSpecular * specular;
+    //return diffuse;
+}
+
+
+Vector3f Scene::MidVector(Vector3f ViewingDir, Vector3f LightDir) const
+{
+    return (ViewingDir + LightDir).normalized();
+}
+
+
+
+float Scene::ProbChooseDiffuse(const Intersection& intersect) const
+{
+    float Kd = intersect.shape->mat->Kd.norm();
+    float Ks = intersect.shape->mat->Ks.norm();
+
+    float s = Kd + Ks;
+
+    return Kd / s;
+}
+
+
+
+float Scene::ProbChooseSpecular(const Intersection& intersect) const
+{
+    float Kd = intersect.shape->mat->Kd.norm();
+    float Ks = intersect.shape->mat->Ks.norm();
+
+    float s = Kd + Ks;
+
+    return Ks / s;
+}
+
+
+// TODO
+float DistributionFunction(Vector3f m, const Intersection& intersect)
+{
+    return DistributionPhong(m, intersect);
+}
+
+
+float DistributionPhong(Vector3f m, const Intersection& intersect)
+{
+    float alpha = intersect.shape->mat->alpha;
+    float mDotN = m.dot(intersect.normal);
+    if (mDotN < 0) return 0.0f;
+    else return (alpha + 2.0f) / 2.0f / PI * pow(mDotN, alpha);
+}
+
+
+
+
+Vector3f Fresnel(float d, const Intersection& intersect) {
+    Vector3f Ks = intersect.shape->mat->Ks;
+    //std::cout << "Ks: " << Ks[0] << ", " << Ks[1] << ", " << Ks[2] << std::endl;
+    Vector3f result =  Ks + (Vector3f(1.0f, 1.0f, 1.0f) - Ks) * pow((1 - fabsf(d)), 5.0f);
+    /*
+    if (result[0] < 0 || result[1] < 0 || result[2] < 0)
+    {
+        std::cout << "F Part less than 0" << std::endl;
+        std::cout << "F: " << result[0] << ", " << result[1] << ", " << result[2] << std::endl;
+        std::cout << "fabsf(d): " << fabsf(d) << std::endl;
+        std::cout << "pow((1 - fabsf(d)), 5.0f): " << pow((1 - fabsf(d)), 5.0f) << std::endl;
+    }*/
+
+
+    return result;
+}
+
+
+float GeometryFunction(Vector3f ViewingDir, Vector3f LightDir, Vector3f m, const Intersection& intersect)
+{
+    return G1(ViewingDir, m, intersect) * G1(LightDir, m, intersect);
+}
+
+
+// Phong
+float G1(Vector3f dir, Vector3f m, const Intersection& intersect)
+{
+    float vDotN = dir.dot(intersect.normal);
+    if (vDotN > 1.0f) return 1.0f;
+    if (dir.dot(m) / vDotN < 0) return 0.0f;
+    else {
+        float tanTheta = sqrt(1.0f - vDotN * vDotN) / vDotN;
+        if (tanTheta < 0.00001f) return 1.0f;
+        float a = sqrt(intersect.shape->mat->alpha / 2.0f + 1.0f) / tanTheta;
+        if (a > 1.6) return 1.0f;
+        else return (3.535f * a + 2.181f * a * a) / (1.0f + 2.276f * a + 2.577 * a * a);
+    }
 }
