@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 200
+#define NUM_PASS 2000
 
 
 Scene::Scene() 
@@ -161,7 +161,12 @@ void Scene::TraceImage(Color* image, const int pass)
             for (int x = 0; x < width; x++) 
             {
                 const Ray ray = camera->generateRay(x, y, width, height);
-                image[y * width + x] += Color(TracePath(ray, Tree) / NUM_PASS);
+                Color color(TracePath(ray, Tree) / NUM_PASS);
+
+                if (Eigen::isinf(color).any()) continue;
+                if (Eigen::isnan(color).any()) continue;
+                
+                image[y * width + x] += (color / NUM_PASS);
             }
         }
     }
