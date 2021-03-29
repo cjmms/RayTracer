@@ -237,41 +237,23 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
     float G = GeometryFunction(ViewingDir, SampleDir, m, intersect);
     Vector3f F = Fresnel(m.dot(SampleDir), intersect);
 
-    float denominator = 4 * fabsf(ViewingDir.dot(N)) * fabsf(SampleDir.dot(N));
+    float denominator = 4.0f * fabsf(ViewingDir.dot(N)) * fabsf(SampleDir.dot(N));
 
     Vector3f SpecularPart = D * G * F / denominator;    // Cook-Torrance
-
-    //PrintVector("SampleDir: ", SampleDir);
-    //PrintVector("ViewDir: ", ViewingDir);
-    //PrintVector("m: ", m);
-    //std::cout << "M dot sample: " << m.dot(SampleDir) << std::endl;
-    /*
-    if (F[0] < 0 || F[1] < 0 || F[2] < 0)
-    {
-        std::cout << "F Part less than 0" << std::endl;
-        std::cout << "F: " << F[0] << ", " << F[1] << ", " << F[2] << std::endl;
-    }*/
-    /*
-    if (SpecularPart[0] < 0 || SpecularPart[1] < 0 || SpecularPart[2] < 0)
-    {
-        std::cout << "Specular Part less than 0" << std::endl;
-    }
-
-    if (D < 0) std::cout << "D less than 0" << std::endl;
-    if (G < 0) std::cout << "G less than 0" << std::endl;
-    if (denominator < 0) std::cout << "denominator less than 0" << std::endl;
-    */
     
     return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
+
+    // diffuse only
+    //return DiffusePart * fabsf(N.dot(SampleDir));
 }
 
 
-// TODO
 Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& intersect) const
 {
     float t1 = myrandom(RNGen); // first unifromly distributed random number
     float t2 = myrandom(RNGen); // first unifromly distributed random number
 
+    
     if (myrandom(RNGen) < ProbChooseDiffuse(intersect)) // Diffuse
     {
         return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
@@ -279,8 +261,11 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
     else   // reflection    
     {
         // since D uses Phong Distribution
-        float cosTheta = pow(t1, 1 / (intersect.shape->mat->alpha + 1));
-        Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2);
+        float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
+
+        //float cosTheta = cosf(atanf(intersect.shape->mat->alpha * sqrtf(t1) / sqrtf(1 - t1) ));
+
+        Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
         return 2.0f * ViewDir.dot(m) * m - ViewDir;
     }
 }
@@ -373,10 +358,9 @@ float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const 
     float diffuse = fabsf(N.dot(SampleDir)) / PI;
 
     Vector3f m = MidVector(ViewingDir, SampleDir);
-    float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4 * SampleDir.dot(m));
+    float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
 
     return ProbDiffuse * diffuse + ProbSpecular * specular;
-    //return diffuse;
 }
 
 
@@ -414,6 +398,8 @@ float Scene::ProbChooseSpecular(const Intersection& intersect) const
 float DistributionFunction(Vector3f m, const Intersection& intersect)
 {
     return DistributionPhong(m, intersect);
+    //std::cout << "dis: " << DistributionPhong(m, intersect) << std::endl;
+    //return DistributionGGX(m, intersect);
 }
 
 
@@ -425,35 +411,36 @@ float DistributionPhong(Vector3f m, const Intersection& intersect)
     else return (alpha + 2.0f) / 2.0f / PI * pow(mDotN, alpha);
 }
 
+float DistributionGGX(Vector3f m, const Intersection& intersect)
+{
+    float alpha = intersect.shape->mat->alpha;
+    float mDotN = m.dot(intersect.normal);
+    if (mDotN < 0) return 0.0f;
 
+    float tanTheta = sqrtf(1.0f - mDotN * mDotN) / mDotN;
+    //float denominator = PI * pow(mDotN, 4) * pow((alpha * alpha + tanTheta * tanTheta), 2);
+
+    float denominator = PI * pow((mDotN * mDotN * (alpha * alpha - 1) + 1), 2);
+
+    return alpha * alpha / denominator;
+}
 
 
 Vector3f Fresnel(float d, const Intersection& intersect) {
     Vector3f Ks = intersect.shape->mat->Ks;
-    //std::cout << "Ks: " << Ks[0] << ", " << Ks[1] << ", " << Ks[2] << std::endl;
-    Vector3f result =  Ks + (Vector3f(1.0f, 1.0f, 1.0f) - Ks) * pow((1 - fabsf(d)), 5.0f);
-    /*
-    if (result[0] < 0 || result[1] < 0 || result[2] < 0)
-    {
-        std::cout << "F Part less than 0" << std::endl;
-        std::cout << "F: " << result[0] << ", " << result[1] << ", " << result[2] << std::endl;
-        std::cout << "fabsf(d): " << fabsf(d) << std::endl;
-        std::cout << "pow((1 - fabsf(d)), 5.0f): " << pow((1 - fabsf(d)), 5.0f) << std::endl;
-    }*/
-
-
-    return result;
+    return Ks + (Vector3f(1.0f, 1.0f, 1.0f) - Ks) * pow((1.0f - d), 5.0f);
 }
 
 
 float GeometryFunction(Vector3f ViewingDir, Vector3f LightDir, Vector3f m, const Intersection& intersect)
 {
-    return G1(ViewingDir, m, intersect) * G1(LightDir, m, intersect);
+    return G1_Phong(ViewingDir, m, intersect) * G1_Phong(LightDir, m, intersect);
+    //return G1_GGX(ViewingDir, m, intersect) * G1_GGX(ViewingDir, m, intersect);
 }
 
 
 // Phong
-float G1(Vector3f dir, Vector3f m, const Intersection& intersect)
+float G1_Phong(Vector3f dir, Vector3f m, const Intersection& intersect)
 {
     float vDotN = dir.dot(intersect.normal);
     if (vDotN > 1.0f) return 1.0f;
@@ -465,4 +452,19 @@ float G1(Vector3f dir, Vector3f m, const Intersection& intersect)
         if (a > 1.6) return 1.0f;
         else return (3.535f * a + 2.181f * a * a) / (1.0f + 2.276f * a + 2.577 * a * a);
     }
+}
+
+
+
+float G1_GGX(Vector3f dir, Vector3f m, const Intersection& intersect)
+{
+    float vDotN = dir.dot(intersect.normal);
+
+    if (vDotN > 1.0f) return 1.0f;
+    if (dir.dot(m) / vDotN < 0) return 0.0f;
+
+    float alpha = intersect.shape->mat->alpha;
+    float tanTheta = sqrtf(1.0f - vDotN * vDotN) / vDotN;
+
+    return 2.0f / (1 + sqrtf( 1 + alpha * alpha * tanTheta * tanTheta));
 }

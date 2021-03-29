@@ -147,13 +147,16 @@ float DistributionFunction(Vector3f m, const Intersection& intersect);
 
 float DistributionPhong(Vector3f m, const Intersection& intersect);
 
+float DistributionGGX(Vector3f m, const Intersection& intersect);
+
 Vector3f Fresnel(float d, const Intersection& intersect);
 
 // This is a part of Cook-Torrance
 float GeometryFunction(Vector3f ViewingDir, Vector3f LightDir, Vector3f m, const Intersection& intersect);
 
-float G1(Vector3f dir, Vector3f m, const Intersection& intersect);
+float G1_Phong(Vector3f dir, Vector3f m, const Intersection& intersect);
 
+float G1_GGX(Vector3f dir, Vector3f m, const Intersection& intersect);
 
 
 
