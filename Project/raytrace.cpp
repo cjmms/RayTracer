@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 2000
+#define NUM_PASS 100
 
 
 Scene::Scene() 
@@ -247,31 +247,46 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
     Vector3f SpecularPart = D * G * F / denominator;    // Cook-Torrance
     
     return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
-
-    // diffuse only
-    //return DiffusePart * fabsf(N.dot(SampleDir));
 }
 
 
+// TODO
 Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& intersect) const
 {
     float t1 = myrandom(RNGen); // first unifromly distributed random number
     float t2 = myrandom(RNGen); // first unifromly distributed random number
 
-    
-    if (myrandom(RNGen) < ProbChooseDiffuse(intersect)) // Diffuse
+    float random = myrandom(RNGen); // random possbility to choose over diffuse / reflection / transmission
+
+    if (random < ProbChooseDiffuse(intersect)) // Diffuse
     {
         return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
     }
-    else   // reflection    
+    else if (random < ProbChooseSpecular(intersect))  // reflection    
     {
         // since D uses Phong Distribution
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
-        //float cosTheta = cosf(atanf(intersect.shape->mat->alpha * sqrtf(t1) / sqrtf(1 - t1) ));
-
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
-        return 2.0f * ViewDir.dot(m) * m - ViewDir;
+        //return 2.0f * ViewDir.dot(m) * m - ViewDir; // no transmission
+        return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
+    }
+    else     // transmission
+    {
+        float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
+
+        // sample a normal in narrow lobe around N
+        Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
+
+        float IndexOfReflection = ComputeIndexOfReflection();
+        float r = 1 - IndexOfReflection * IndexOfReflection * (1 - powf(ViewDir.dot(m), 2));
+
+        if (r < 0) {
+
+        }
+        else {
+            return 
+        }
     }
 }
 
