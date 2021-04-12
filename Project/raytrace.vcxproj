@@ -138,6 +138,7 @@ xcopy .\libs\assimp\32\assimp.dll .\Release /Y /D</Command>
   </ItemGroup>
   <ItemGroup>
     <None Include="Reflection.scn" />
+    <None Include="Refraction.scn" />
     <None Include="test.scn" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

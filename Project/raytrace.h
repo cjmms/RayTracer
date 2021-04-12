@@ -19,8 +19,8 @@ const float Radians = PI / 180.0f;    // Convert degrees to radians
 class Material
 {
  public:
-    Vector3f Kd, Ks;
-    float alpha;
+    Vector3f Kd, Ks, Kt;
+    float alpha, ior;
     unsigned int texid;
 
     virtual bool isLight() { return false; }
@@ -29,6 +29,9 @@ class Material
     Material(const Vector3f d, const Vector3f s, const float a) 
         : Kd(d), Ks(s), alpha(a), texid(0) {}
     Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
+
+    Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior)
+        : Kd(d), Ks(s), Kt(t), alpha(a), texid(0), ior(ior) {}
 
     void setTexture(const std::string path);
     //virtual void apply(const unsigned int program);
@@ -84,6 +87,7 @@ private:
     Vector3f MidVector(Vector3f ViewingDir, Vector3f LightDir) const;
     float ProbChooseDiffuse(const Intersection& intersect) const;
     float ProbChooseSpecular(const Intersection& intersect) const;
+    float ProbChooseTransmission(const Intersection& intersect) const;
 
 public:
     int width, height;

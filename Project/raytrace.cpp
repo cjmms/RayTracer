@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 2000
+#define NUM_PASS 20
 
 
 Scene::Scene() 
@@ -95,8 +95,13 @@ void Scene::Command(const std::vector<std::string>& strings,
     }
 
     else if (c == "brdf")  {
+        currentMat = new Material(Vector3f(f[1], f[2], f[3]), 
+            Vector3f(f[4], f[5], f[6]), f[7], 
+            Vector3f(f[8], f[9], f[10]), f[11]);
 
-        currentMat = new Material(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7]); }
+        // no transmission argument
+        // currentMat = new Material(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7]); 
+    }
 
     else if (c == "light") {
 
@@ -405,8 +410,9 @@ float Scene::ProbChooseDiffuse(const Intersection& intersect) const
 {
     float Kd = intersect.shape->mat->Kd.norm();
     float Ks = intersect.shape->mat->Ks.norm();
+    float Kt = intersect.shape->mat->Kt.norm();
 
-    float s = Kd + Ks;
+    float s = Kd + Ks + Kt;
 
     return Kd / s;
 }
@@ -417,10 +423,23 @@ float Scene::ProbChooseSpecular(const Intersection& intersect) const
 {
     float Kd = intersect.shape->mat->Kd.norm();
     float Ks = intersect.shape->mat->Ks.norm();
+    float Kt = intersect.shape->mat->Kt.norm();
 
-    float s = Kd + Ks;
+    float s = Kd + Ks + Kt;
 
     return Ks / s;
+}
+
+
+float Scene::ProbChooseTransmission(const Intersection& intersect) const
+{
+    float Kd = intersect.shape->mat->Kd.norm();
+    float Ks = intersect.shape->mat->Ks.norm();
+    float Kt = intersect.shape->mat->Kt.norm();
+
+    float s = Kd + Ks + Kt;
+
+    return Kt / s;
 }
 
 
