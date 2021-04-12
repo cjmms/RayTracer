@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 100
+#define NUM_PASS 10
 
 
 Scene::Scene() 
@@ -273,6 +273,7 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
     }
     else     // transmission
     {
+        /*
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
         // sample a normal in narrow lobe around N
@@ -281,12 +282,14 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
         float IndexOfReflection = ComputeIndexOfReflection();
         float r = 1 - IndexOfReflection * IndexOfReflection * (1 - powf(ViewDir.dot(m), 2));
 
-        if (r < 0) {
-
+        if (r < 0) {    // return reflection's light dir
+            return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
         }
         else {
-            return 
+            float sign = ViewDir.dot(N) >= 0 ? 1 : -1;
+            return (IndexOfReflection * ViewDir.dot(m) - sign * sqrtf(r)) * m - IndexOfReflection * ViewDir;
         }
+        */
     }
 }
 
@@ -347,6 +350,9 @@ void Scene::ExplicitLight(Vector3f ViewingDir, Vector3f& weight, Vector3f& color
     Intersection L = SampleLight();     // Explicit light connection
     float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
 
+    float q = PdfBrdf(ViewingDir, P.normal, (L.position - P.position).normalized(), P) * RussianRoulette;
+    float Weight_mis = p * p / (p * p + q * q);
+
     if (p > 0.0f) {
         Vector3f Obj2LightDir = (L.position - P.position).normalized();   // direction, from current obj to light obj
         Intersection I = TraceRay(Ray(P.position, Obj2LightDir), Tree);   // trace a ray from current obj to random light
@@ -354,7 +360,7 @@ void Scene::ExplicitLight(Vector3f ViewingDir, Vector3f& weight, Vector3f& color
         if (I.hasIntersection() && compareVector(I.position, L.position))     // if intersection exists and is as as position in light
         {
             Vector3f f = EvalScattering(ViewingDir, P.normal, Obj2LightDir, P);
-            color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L));
+            color += 0.5f * (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L)) * Weight_mis;
         }
     }
 }
