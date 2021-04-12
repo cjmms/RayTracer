@@ -89,6 +89,8 @@ private:
     float ProbChooseSpecular(const Intersection& intersect) const;
     float ProbChooseTransmission(const Intersection& intersect) const;
 
+    float ComputeIndexOfReflection(const Vector3f ViewDir, const Vector3f N, const Intersection& intersect) const;
+
 public:
     int width, height;
     Material* currentMat;

@@ -269,26 +269,22 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
     {
         return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
     }
-   // else if (random < ProbChooseSpecular(intersect))  // reflection    
-   // {
-    else {
+    else if (random < ProbChooseSpecular(intersect))  // reflection   
+    {
         // since D uses Phong Distribution
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
-        return 2.0f * ViewDir.dot(m) * m - ViewDir; // no transmission
-        //return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
+
+        return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
     }
-    //}
-   // else     // transmission
-   // {
-        /*
+    else     // transmission
+    {
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
-        // sample a normal in narrow lobe around N
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
 
-        float IndexOfReflection = ComputeIndexOfReflection();
+        float IndexOfReflection = ComputeIndexOfReflection(ViewDir, N, intersect);
         float r = 1 - IndexOfReflection * IndexOfReflection * (1 - powf(ViewDir.dot(m), 2));
 
         if (r < 0) {    // return reflection's light dir
@@ -298,8 +294,7 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
             float sign = ViewDir.dot(N) >= 0 ? 1 : -1;
             return (IndexOfReflection * ViewDir.dot(m) - sign * sqrtf(r)) * m - IndexOfReflection * ViewDir;
         }
-        */
-    //}
+    }
 }
 
 
@@ -516,4 +511,19 @@ float G1_GGX(Vector3f dir, Vector3f m, const Intersection& intersect)
     float tanTheta = sqrtf(1.0f - vDotN * vDotN) / vDotN;
 
     return 2.0f / (1 + sqrtf( 1 + alpha * alpha * tanTheta * tanTheta));
+}
+
+
+
+
+float Scene::ComputeIndexOfReflection(const Vector3f ViewDir, const Vector3f N, const Intersection& intersect) const
+{
+    float NdotView = ViewDir.dot(N);
+
+    float IOR = intersect.shape->mat->ior;
+
+    if (NdotView > 0)
+        return 1.0f / IOR;
+    else
+        return IOR;
 }
