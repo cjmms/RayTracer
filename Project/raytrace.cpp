@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 10
+#define NUM_PASS 2000
 
 
 Scene::Scene() 
@@ -218,7 +218,9 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
         {      
-            Color += 0.5f * EvalRadiance(Q).cwiseProduct(Weight);
+            float q = PdfLight(Q) / GeometryFactor(P, Q);
+            float Weight_mis = p * p / (p * p + q * q);
+            Color += 0.5f * EvalRadiance(Q).cwiseProduct(Weight) * Weight_mis;
             break;
         }
 
@@ -262,17 +264,19 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
     {
         return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
     }
-    else if (random < ProbChooseSpecular(intersect))  // reflection    
-    {
+   // else if (random < ProbChooseSpecular(intersect))  // reflection    
+   // {
+    else {
         // since D uses Phong Distribution
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
-        //return 2.0f * ViewDir.dot(m) * m - ViewDir; // no transmission
-        return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
+        return 2.0f * ViewDir.dot(m) * m - ViewDir; // no transmission
+        //return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
     }
-    else     // transmission
-    {
+    //}
+   // else     // transmission
+   // {
         /*
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
 
@@ -290,7 +294,7 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
             return (IndexOfReflection * ViewDir.dot(m) - sign * sqrtf(r)) * m - IndexOfReflection * ViewDir;
         }
         */
-    }
+    //}
 }
 
 
