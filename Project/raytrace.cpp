@@ -385,12 +385,16 @@ float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const 
 
     float ProbSpecular = ProbChooseSpecular(intersect);
 
+    float ProbTransmission = ProbChooseTransmission(intersect);
+
     float diffuse = fabsf(N.dot(SampleDir)) / PI;
 
     Vector3f m = MidVector(ViewingDir, SampleDir);
     float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
 
-    return ProbDiffuse * diffuse + ProbSpecular * specular;
+    float transmission = VecProbTransmission(ViewingDir, N, SampleDir, intersect);
+
+    return ProbDiffuse * diffuse + ProbSpecular * specular + ProbTransmission * transmission;
 }
 
 
@@ -526,4 +530,47 @@ float Scene::ComputeIndexOfReflection(const Vector3f ViewDir, const Vector3f N, 
         return 1.0f / IOR;
     else
         return IOR;
+}
+
+
+
+
+float Scene::VecProbTransmission(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const
+{
+    float IOR_0, IOR_1, IOR;
+
+    float viewDotN = ViewingDir.dot(N);
+    if (viewDotN > 0)
+    {
+        IOR_1 = 1.0f;
+        IOR_0 = intersect.shape->mat->ior;
+    }
+    else
+    {
+        IOR_1 = intersect.shape->mat->ior;
+        IOR_0 = 1.0f;
+    }
+    IOR = IOR_1 / IOR_0;
+
+    Vector3f m = -(IOR_0 * SampleDir + IOR_1 * ViewingDir).normalized();
+
+    float viewDotm = m.dot(ViewingDir);
+
+    float r = 1 - IOR * IOR * (1 - viewDotm * viewDotm);        // calculate radicand
+
+
+    if (r < 0)      // if negative, total internal reflection
+    {
+        Vector3f m = MidVector(ViewingDir, SampleDir);
+        return DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
+    }
+    else // transmission term
+    {    // the function is too long, I split it into left and right
+        float left = DistributionFunction(m, intersect) * fabsf(m.dot(N));
+        float numerator = IOR_0 * IOR_0 * fabsf(SampleDir.dot(m));
+        float denominator = IOR_0 * SampleDir.dot(m) + IOR_1 * ViewingDir.dot(m);
+
+        float right = numerator / denominator * denominator;
+        return left * right;
+    }
 }
