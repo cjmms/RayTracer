@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 20
+#define NUM_PASS 60
 
 
 Scene::Scene() 
@@ -98,9 +98,6 @@ void Scene::Command(const std::vector<std::string>& strings,
         currentMat = new Material(Vector3f(f[1], f[2], f[3]), 
             Vector3f(f[4], f[5], f[6]), f[7], 
             Vector3f(f[8], f[9], f[10]), f[11]);
-
-        // no transmission argument
-        // currentMat = new Material(Vector3f(f[1], f[2], f[3]), Vector3f(f[4], f[5], f[6]), f[7]); 
     }
 
     else if (c == "light") {
@@ -245,6 +242,10 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
 
     Vector3f m = MidVector(ViewingDir, SampleDir);
 
+    float Pd = ProbChooseDiffuse(intersect);
+    float Pr = ProbChooseSpecular(intersect);
+    float Pt = ProbChooseTransmission(intersect);
+
     float D = DistributionFunction(m, intersect);
     float G = GeometryFunction(ViewingDir, SampleDir, m, intersect);
     Vector3f F = Fresnel(m.dot(SampleDir), intersect);
@@ -252,8 +253,26 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
     float denominator = 4.0f * fabsf(ViewingDir.dot(N)) * fabsf(SampleDir.dot(N));
 
     Vector3f SpecularPart = D * G * F / denominator;    // Cook-Torrance
-    
-    return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
+
+    Vector3f TransmissionPart = ComputeBRDFTransmission(ViewingDir, N, SampleDir, intersect);
+
+    //if (Pt > 0) {
+        //PrintVector("DiffusePart: ", DiffusePart);
+       // PrintVector("SpecularPart: ", SpecularPart);
+       // PrintVector("TransmissionPart: ", TransmissionPart);
+       // std::cout << "pt: " << Pt << std::endl;
+    //}
+    /*
+    Vector3f attenuation(1.0f, 1.0f, 1.0f);
+    if (SampleDir.dot(N) < 0.0f) {
+        Vector3f Kt = intersect.shape->mat->Kt;
+        for (int i = 0; i < 3; ++i) attenuation[i] = pow(Kt[i], intersect.t);
+    }
+
+    TransmissionPart = TransmissionPart.cwiseProduct(attenuation);
+    */
+    return (DiffusePart * Pd + SpecularPart * Pr + TransmissionPart * Pt) * fabsf(N.dot(SampleDir));
+    //return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
 }
 
 
@@ -265,35 +284,38 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
 
     float random = myrandom(RNGen); // random possbility to choose over diffuse / reflection / transmission
 
-    if (random < ProbChooseDiffuse(intersect)) // Diffuse
+    float Pd = ProbChooseDiffuse(intersect);
+    float Pr = ProbChooseSpecular(intersect);
+
+    if (random < Pd) // Diffuse
     {
         return SampleLobe(N, sqrtf(t1), 2.0f * PI * t2);
     }
-    else if (random < ProbChooseSpecular(intersect))  // reflection   
+    else if (random < (Pd + Pr))  // reflection   
     {
         // since D uses Phong Distribution
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
-
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
-
-        return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
+        return 2.0f * ViewDir.dot(m) * m - ViewDir;
     }
     else     // transmission
-    {
+    {     
         float cosTheta = pow(t1, 1.0f / (intersect.shape->mat->alpha + 1.0f));
-
         Vector3f m = SampleLobe(N, cosTheta, 2.0f * PI * t2).normalized();
 
-        float IndexOfReflection = ComputeIndexOfReflection(ViewDir, N, intersect);
-        float r = 1 - IndexOfReflection * IndexOfReflection * (1 - powf(ViewDir.dot(m), 2));
+        float IOR = intersect.shape->mat->ior;
+        if (ViewDir.dot(N) > 0) IOR = 1.0f / IOR;
+
+        float r = 1.0 - IOR * IOR * (1.0 - powf(ViewDir.dot(m), 2));
 
         if (r < 0) {    // return reflection's light dir
-            return 2.0f * fabsf(ViewDir.dot(m)) * m - ViewDir;
+            return 2.0f * ViewDir.dot(m) * m - ViewDir;
         }
         else {
-            float sign = ViewDir.dot(N) >= 0 ? 1 : -1;
-            return (IndexOfReflection * ViewDir.dot(m) - sign * sqrtf(r)) * m - IndexOfReflection * ViewDir;
+            float sign = ViewDir.dot(N) >= 0 ? 1.0 : -1.0;
+            return (IOR * ViewDir.dot(m) - sign * sqrtf(r)) * m - IOR * ViewDir;
         }
+        
     }
 }
 
@@ -395,6 +417,7 @@ float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const 
     float transmission = VecProbTransmission(ViewingDir, N, SampleDir, intersect);
 
     return ProbDiffuse * diffuse + ProbSpecular * specular + ProbTransmission * transmission;
+    //return ProbDiffuse * diffuse + ProbSpecular * specular;
 }
 
 
@@ -535,42 +558,59 @@ float Scene::ComputeIndexOfReflection(const Vector3f ViewDir, const Vector3f N, 
 
 
 
-float Scene::VecProbTransmission(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const
+float Scene::VecProbTransmission(Vector3f wo, Vector3f N, Vector3f wi, const Intersection& intersect) const
 {
-    float IOR_0, IOR_1, IOR;
+    Vector3f m = (wo + wi).normalized();
+    float pr = DistributionPhong(m, intersect) * fabs(m.dot(N)) / 4.0f / fabs(wi.dot(m));
 
-    float viewDotN = ViewingDir.dot(N);
-    if (viewDotN > 0)
-    {
-        IOR_1 = 1.0f;
-        IOR_0 = intersect.shape->mat->ior;
+    float etai = intersect.shape->mat->ior;
+    float etao = 1.0f;
+    if (wo.dot(N) > 0) {
+        etao = etai; etai = 1.0f;
     }
-    else
-    {
-        IOR_1 = intersect.shape->mat->ior;
-        IOR_0 = 1.0f;
+    float eta = etai / etao;
+    m = -(etao * wi + etai * wo).normalized();
+    float woDotM = wo.dot(m);
+    float r = 1.0f - eta * eta * (1 - woDotM * woDotM);
+    float pt;
+    if (r < 0) return pr;
+    else {
+        float den = etao * wi.dot(m) + etai * wo.dot(m);
+        return  DistributionPhong(m, intersect) * fabs(m.dot(N)) * etao * etao * fabs(wi.dot(m)) / den / den;
     }
-    IOR = IOR_1 / IOR_0;
-
-    Vector3f m = -(IOR_0 * SampleDir + IOR_1 * ViewingDir).normalized();
-
-    float viewDotm = m.dot(ViewingDir);
-
-    float r = 1 - IOR * IOR * (1 - viewDotm * viewDotm);        // calculate radicand
+}
 
 
-    if (r < 0)      // if negative, total internal reflection
-    {
-        Vector3f m = MidVector(ViewingDir, SampleDir);
-        return DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
+
+
+Vector3f Scene::ComputeBRDFTransmission(Vector3f wo, Vector3f N, Vector3f wi, Intersection& intersect) const
+{
+    float jacobDen = fabs(wi.dot(N) * wo.dot(N));    
+
+    Vector3f m = (wo + wi).normalized();
+
+    float D = DistributionPhong(m, intersect);
+    float G = GeometryFunction(wo, wi, m, intersect);
+    Vector3f F = Fresnel(m.dot(wi), intersect);
+
+    Color Er = D * G * F / 4.0f / jacobDen;
+
+    float etai = intersect.shape->mat->ior;
+    float etao = 1.0f;
+    if (wo.dot(N) > 0) {
+        etao = etai; etai = 1.0f;
     }
-    else // transmission term
-    {    // the function is too long, I split it into left and right
-        float left = DistributionFunction(m, intersect) * fabsf(m.dot(N));
-        float numerator = IOR_0 * IOR_0 * fabsf(SampleDir.dot(m));
-        float denominator = IOR_0 * SampleDir.dot(m) + IOR_1 * ViewingDir.dot(m);
-
-        float right = numerator / denominator * denominator;
-        return left * right;
+    float eta = etai / etao;
+    m = -(etao * wi + etai * wo).normalized();
+    float woDotM = wo.dot(m);
+    float r = 1.0f - eta * eta * (1 - woDotM * woDotM);
+    Color Et;
+    if (r < 0.0f) return Er;
+    else {
+        float den = etao * wi.dot(m) + etai * wo.dot(m);
+        float result = D * G / jacobDen
+            * fabs(wi.dot(m) * wo.dot(m)) * etao * etao
+            / den / den;
+        return result * (Vector3f(1.0f, 1.0f, 1.0f) - F);
     }
 }
