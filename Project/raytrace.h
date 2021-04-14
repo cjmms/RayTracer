@@ -23,6 +23,8 @@ class Material
     float alpha, ior;
     unsigned int texid;
 
+    float Pd, Pr, Pt;
+
     virtual bool isLight() { return false; }
 
     Material()  : Kd(Vector3f(1.0, 0.5, 0.0)), Ks(Vector3f(1,1,1)), alpha(1.0), texid(0) {}
@@ -30,8 +32,7 @@ class Material
         : Kd(d), Ks(s), alpha(a), texid(0) {}
     Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
 
-    Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior)
-        : Kd(d), Ks(s), Kt(t), alpha(a), texid(0), ior(ior) {}
+    Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior);
 
     void setTexture(const std::string path);
     //virtual void apply(const unsigned int program);
@@ -85,9 +86,6 @@ public:
 class Scene {
 private:
     Vector3f MidVector(Vector3f ViewingDir, Vector3f LightDir) const;
-    float ProbChooseDiffuse(const Intersection& intersect) const;
-    float ProbChooseSpecular(const Intersection& intersect) const;
-    float ProbChooseTransmission(const Intersection& intersect) const;
 
     float ComputeIndexOfReflection(const Vector3f ViewDir, const Vector3f N, const Intersection& intersect) const;
     float VecProbTransmission(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const;

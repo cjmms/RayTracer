@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 60
+#define NUM_PASS 20
 
 
 Scene::Scene() 
@@ -215,7 +215,12 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         float p = PdfBrdf(ViewingDir, P.normal, SampleDir, P);
         if (p < Epsilon) break;
 
-        Weight = Weight.cwiseProduct(EvalScattering(ViewingDir, P.normal, SampleDir, P) / p);
+        Vector3f es = EvalScattering(ViewingDir, P.normal, SampleDir, P);
+
+        //PrintVector("EavlScattering: ", es);
+        //std::cout << "PdfBRDF: " << p << std::endl;
+
+        Weight = Weight.cwiseProduct(es / p);
 
         // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
@@ -242,9 +247,9 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
 
     Vector3f m = MidVector(ViewingDir, SampleDir);
 
-    float Pd = ProbChooseDiffuse(intersect);
-    float Pr = ProbChooseSpecular(intersect);
-    float Pt = ProbChooseTransmission(intersect);
+    float Pd = intersect.shape->mat->Pd;
+    float Pr = intersect.shape->mat->Pr;
+    float Pt = intersect.shape->mat->Pt;
 
     float D = DistributionFunction(m, intersect);
     float G = GeometryFunction(ViewingDir, SampleDir, m, intersect);
@@ -271,6 +276,14 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
 
     TransmissionPart = TransmissionPart.cwiseProduct(attenuation);
     */
+
+    if (TransmissionPart != SpecularPart && intersect.shape->mat->ior == 1.25)
+    {
+       // std::cout << "D, EvalScattering: " << DiffusePart << std::endl;
+       // std::cout << "S, EvalScattering: " << SpecularPart << std::endl;
+        //std::cout << "T, EvalScattering: " << TransmissionPart << std::endl;
+    }
+
     return (DiffusePart * Pd + SpecularPart * Pr + TransmissionPart * Pt) * fabsf(N.dot(SampleDir));
     //return (DiffusePart + SpecularPart) * fabsf(N.dot(SampleDir));
 }
@@ -284,8 +297,10 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
 
     float random = myrandom(RNGen); // random possbility to choose over diffuse / reflection / transmission
 
-    float Pd = ProbChooseDiffuse(intersect);
-    float Pr = ProbChooseSpecular(intersect);
+    float Pd = intersect.shape->mat->Pd;
+    float Pr = intersect.shape->mat->Pr;
+
+
 
     if (random < Pd) // Diffuse
     {
@@ -403,11 +418,9 @@ void PrintVector(std::string str, Vector3f v)
 
 float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const
 { 
-    float ProbDiffuse = ProbChooseDiffuse(intersect);
-
-    float ProbSpecular = ProbChooseSpecular(intersect);
-
-    float ProbTransmission = ProbChooseTransmission(intersect);
+    float ProbDiffuse = intersect.shape->mat->Pd;
+    float ProbSpecular = intersect.shape->mat->Pr;
+    float ProbTransmission = intersect.shape->mat->Pt;
 
     float diffuse = fabsf(N.dot(SampleDir)) / PI;
 
@@ -415,6 +428,13 @@ float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const 
     float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
 
     float transmission = VecProbTransmission(ViewingDir, N, SampleDir, intersect);
+
+    if (transmission != specular && intersect.shape->mat->ior == 1.25)
+    {
+        //std::cout << "D, PdfBRDF: " << diffuse << std::endl;
+        //std::cout << "S, PdfBRDF: " << specular << std::endl;
+        //std::cout << "T, PdfBRDF: " << transmission << std::endl;
+    }
 
     return ProbDiffuse * diffuse + ProbSpecular * specular + ProbTransmission * transmission;
     //return ProbDiffuse * diffuse + ProbSpecular * specular;
@@ -428,44 +448,7 @@ Vector3f Scene::MidVector(Vector3f ViewingDir, Vector3f LightDir) const
 
 
 
-float Scene::ProbChooseDiffuse(const Intersection& intersect) const
-{
-    float Kd = intersect.shape->mat->Kd.norm();
-    float Ks = intersect.shape->mat->Ks.norm();
-    float Kt = intersect.shape->mat->Kt.norm();
 
-    float s = Kd + Ks + Kt;
-
-    return Kd / s;
-}
-
-
-
-float Scene::ProbChooseSpecular(const Intersection& intersect) const
-{
-    float Kd = intersect.shape->mat->Kd.norm();
-    float Ks = intersect.shape->mat->Ks.norm();
-    float Kt = intersect.shape->mat->Kt.norm();
-
-    float s = Kd + Ks + Kt;
-
-    return Ks / s;
-}
-
-
-float Scene::ProbChooseTransmission(const Intersection& intersect) const
-{
-    float Kd = intersect.shape->mat->Kd.norm();
-    float Ks = intersect.shape->mat->Ks.norm();
-    float Kt = intersect.shape->mat->Kt.norm();
-
-    float s = Kd + Ks + Kt;
-
-    return Kt / s;
-}
-
-
-// TODO
 float DistributionFunction(Vector3f m, const Intersection& intersect)
 {
     return DistributionPhong(m, intersect);
@@ -600,10 +583,14 @@ Vector3f Scene::ComputeBRDFTransmission(Vector3f wo, Vector3f N, Vector3f wi, In
     if (wo.dot(N) > 0) {
         etao = etai; etai = 1.0f;
     }
+
     float eta = etai / etao;
     m = -(etao * wi + etai * wo).normalized();
+
     float woDotM = wo.dot(m);
+
     float r = 1.0f - eta * eta * (1 - woDotM * woDotM);
+
     Color Et;
     if (r < 0.0f) return Er;
     else {
@@ -613,4 +600,23 @@ Vector3f Scene::ComputeBRDFTransmission(Vector3f wo, Vector3f N, Vector3f wi, In
             / den / den;
         return result * (Vector3f(1.0f, 1.0f, 1.0f) - F);
     }
+}
+
+
+
+
+//-----------------------------------------------------------------
+
+Material::Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior)
+    : Kd(d), Ks(s), Kt(t), alpha(a), texid(0), ior(ior)
+{
+    float diffuse = Kd.norm();
+    float reflection = Ks.norm();
+    float transmission = Kt.norm();
+
+    float sum = diffuse + reflection + transmission;
+
+    Pd = diffuse / sum;
+    Pr = reflection / sum;
+    Pt = transmission / sum;
 }
