@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 20
+#define NUM_PASS 60
 
 
 Scene::Scene() 
@@ -228,9 +228,9 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
         {      
-            //float q = PdfLight(Q) / GeometryFactor(P, Q);
-            //float Weight_mis = p * p / (p * p + q * q);
-            float Weight_mis = 1.0f;
+            float q = PdfLight(Q) / GeometryFactor(P, Q);
+            float Weight_mis = p * p / (p * p + q * q);
+            //float Weight_mis = 1.0f;
 
             Color += 0.5f * EvalRadiance(Q).cwiseProduct(Weight) * Weight_mis;
             break;
@@ -288,7 +288,15 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
         Et = result * (Vector3f(1.0f, 1.0f, 1.0f) - Fresnel(m.dot(SampleDir), intersect));
     }
 
-    return Pd * DiffusePart + Pr * SpecularPart + Pt * Vector3f(Et) * fabsf(N.dot(SampleDir));
+    // Beer's Law
+    Color attenuation = Color(1.0f, 1.0f, 1.0f);
+    if (SampleDir.dot(N) < 0.0f) {
+        Vector3f Kt = intersect.shape->mat->Kt;
+        for (int i = 0; i < 3; ++i) attenuation[i] = pow(Kt[i], intersect.t);
+    }
+    //Et = Et.cwiseProduct(attenuation);
+
+    return DiffusePart + SpecularPart + Vector3f(Et) * fabsf(N.dot(SampleDir));
 
 
     //if (Pt > 0) {
@@ -478,9 +486,9 @@ void Scene::ExplicitLight(Vector3f ViewingDir, Vector3f& weight, Vector3f& color
     Intersection L = SampleLight();     // Explicit light connection
     float p = PdfLight(L) / GeometryFactor(P, L); // Probability of L, converted to angular measure
 
-    //float q = PdfBrdf(ViewingDir, P.normal, (L.position - P.position).normalized(), P) * RussianRoulette;
-    //float Weight_mis = p * p / (p * p + q * q);
-    float Weight_mis = 1.0f;
+    float q = PdfBrdf(ViewingDir, P.normal, (L.position - P.position).normalized(), P) * RussianRoulette;
+    float Weight_mis = p * p / (p * p + q * q);
+    //float Weight_mis = 1.0f;
 
     if (p > 0.0f) {
         Vector3f Obj2LightDir = (L.position - P.position).normalized();   // direction, from current obj to light obj
