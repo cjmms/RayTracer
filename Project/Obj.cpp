@@ -100,6 +100,7 @@ void Intersection::set(Shape* shape, Vector3f position, Vector3f normal, float t
 // roots:			(-b +/- sqrt(dis)) / 2a
 bool Sphere::intersect(const Ray ray, Intersection& intersection)
 {
+	/*
 	const Vector3f V = ray.direction;
 	const Vector3f Q = ray.point - center;
 
@@ -146,6 +147,22 @@ bool Sphere::intersect(const Ray ray, Intersection& intersection)
 	Vector3f N = (intersect - center).normalized();
 
 	intersection.set(this, intersect, N, t);
+
+	return true;
+	*/
+
+
+
+	Vector3f Qbar = ray.point - center;
+	float QdotD = Qbar.dot(ray.direction);
+	float fvar = sqrt(QdotD * QdotD - Qbar.dot(Qbar) + radius * radius);
+	if (-QdotD - fvar > 0.0001f) intersection.t = -QdotD - fvar;
+	else if (-QdotD + fvar > 0.0001f) intersection.t = -QdotD + fvar;
+	else return false;
+
+	intersection.position = ray.evl(intersection.t);
+	intersection.normal = (intersection.position - center).normalized();
+	intersection.shape = this;
 
 	return true;
 }
