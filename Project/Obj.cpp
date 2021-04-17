@@ -381,6 +381,7 @@ Bbox Triangle::bbox() const
 
 bool Triangle::intersect(const Ray ray, Intersection& intersection)
 {
+	/*
 	Vector3f Q = ray.point;
 	Vector3f D = ray.direction;
 
@@ -406,5 +407,28 @@ bool Triangle::intersect(const Ray ray, Intersection& intersection)
 	Vector3f Normal = (1.0f - u - v) * n0 + u * n1 + v * n2;
 	intersection.set(this, ray.evl(t), Normal, t);
 
+	return true;*/
+
+	Vector3f e1 = v1 - v0;
+	Vector3f e2 = v2 - v0;
+	Vector3f p = ray.direction.cross(e2);
+	float d = p.dot(e1);
+	if (abs(d) < 0.00001f) return false;
+	Vector3f s = ray.point - v0;
+	float u = (p.dot(s)) / d;
+	if (u < 0.0f || u >1) return false;
+	Vector3f q = s.cross(e1);
+	float v = ray.direction.dot(q) / d;
+	if (v < 0.0f || u + v > 1.0f) return false;
+	float t = e2.dot(q) / d;
+	if (t < 0.0f)return false;
+
+	intersection.t = t;
+	intersection.position = ray.evl(t);
+	intersection.normal = e1.cross(e2);
+	intersection.normal.normalize();
+	intersection.shape = this;
 	return true;
+
+
 }

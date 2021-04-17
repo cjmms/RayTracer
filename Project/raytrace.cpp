@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 60
+#define NUM_PASS 4000
 
 
 Scene::Scene() 
@@ -215,21 +215,9 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         float p = PdfBrdf(ViewingDir, P.normal, SampleDir, P) * RussianRoulette;
         if (p < Epsilon) break;
 
-        Vector3f f = EvalScattering(ViewingDir, P.normal, SampleDir, P);
+        Vector3f f = EvalScattering(ViewingDir, P.normal, SampleDir, P, Q);
 
         Weight = Weight.cwiseProduct(f / p);
-        //Weight = Weight.cwiseProduct(f);
-        //Weight = f;
-
-        if (1) {
-            if (Q.shape->mat->Kd.x() == 0.9 && Q.shape->mat->Kd.y() == 0.1) {
-                
-                PrintVector("f, eval sactter: ", f);
-                std::cout << "brdf: " << p << std::endl << std::endl;
-                PrintVector("Kd: ", Q.shape->mat->Kd);
-            }
-        }
-
 
         // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
@@ -249,7 +237,7 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
 }
 
 
-Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect) const
+Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect, Intersection& it) const
 {
     Vector3f DiffusePart = intersect.shape->mat->Kd / PI;     // Lambert
 
@@ -302,15 +290,15 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
 
 
     }
-    /*
+    
     // Beer's Law
     Color attenuation = Color(1.0f, 1.0f, 1.0f);
     if (SampleDir.dot(N) < 0.0f) {
         Vector3f Kt = intersect.shape->mat->Kt;
-        for (int i = 0; i < 3; ++i) attenuation[i] = pow(Kt[i], intersect.t);
+        for (int i = 0; i < 3; ++i) attenuation[i] = pow(Kt[i], it.t);
     }
     //Et = Et.cwiseProduct(attenuation);
-    */
+    
 
    return (Pd * DiffusePart + Pr * SpecularPart + Pt * Vector3f(Et)) * fabsf(N.dot(SampleDir));
     //return ( DiffusePart +  SpecularPart +  Vector3f(Et)) * fabsf(N.dot(SampleDir));
@@ -432,7 +420,7 @@ void Scene::ExplicitLight(Vector3f ViewingDir, Vector3f& weight, Vector3f& color
 
         if (I.hasIntersection() && compareVector(I.position, L.position))     // if intersection exists and is as as position in light
         {
-            Vector3f f = EvalScattering(ViewingDir, P.normal, Obj2LightDir, P);
+            Vector3f f = EvalScattering(ViewingDir, P.normal, Obj2LightDir, P, L);
             color += (f / p).cwiseProduct(weight).cwiseProduct(EvalRadiance(L)) * Weight_mis;
         }
     }

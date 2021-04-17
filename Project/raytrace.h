@@ -30,7 +30,10 @@ class Material
     Material()  : Kd(Vector3f(1.0, 0.5, 0.0)), Ks(Vector3f(1,1,1)), alpha(1.0), texid(0) {}
     Material(const Vector3f d, const Vector3f s, const float a) 
         : Kd(d), Ks(s), alpha(a), texid(0) {}
-    Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
+    //Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
+
+    Material(const Material& rhs) :
+        Kd(rhs.Kd), Ks(rhs.Ks), Kt(rhs.Kt), ior(rhs.ior), alpha(rhs.alpha), texid(rhs.texid) {}
 
     Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior);
 
@@ -130,7 +133,7 @@ public:
 
     inline float PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const Intersection& intersect) const;
 
-    Vector3f EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect) const;
+    Vector3f EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, Intersection& intersect, Intersection& it) const;
 
     Vector3f SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& intersect) const;
 
