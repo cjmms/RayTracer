@@ -33,7 +33,7 @@ extern std::uniform_real_distribution<> myrandom;
 
 
 Scene::Scene() 
-    : RussianRoulette(0.44)
+    : RussianRoulette(0.8)
 { 
     camera = new Camera();
 }
@@ -212,7 +212,7 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         Intersection Q = TraceRay(Ray(P.position, SampleDir), Tree); // Extend path
         if (!Q.hasIntersection()) break;
 
-        float p = PdfBrdf(ViewingDir, P.normal, SampleDir, P);
+        float p = PdfBrdf(ViewingDir, P.normal, SampleDir, P) * RussianRoulette;
         if (p < Epsilon) break;
 
         Vector3f f = EvalScattering(ViewingDir, P.normal, SampleDir, P);
@@ -221,14 +221,21 @@ Vector3f Scene::TracePath(const Ray& ray, KdBVH<float, 3, Shape*> Tree)
         //Weight = Weight.cwiseProduct(f);
         //Weight = f;
 
-        //PrintVector("f, eval sactter", f);
+        if (1) {
+            if (Q.shape->mat->Kd.x() == 0.9 && Q.shape->mat->Kd.y() == 0.1) {
+                
+                PrintVector("f, eval sactter: ", f);
+                std::cout << "brdf: " << p << std::endl << std::endl;
+                PrintVector("Kd: ", Q.shape->mat->Kd);
+            }
+        }
+
 
         // Implicit Light Connection
         if (Q.shape->mat->isLight())    // Implicit light connection
         {      
             float q = PdfLight(Q) / GeometryFactor(P, Q);
             float Weight_mis = p * p / (p * p + q * q);
-            //float Weight_mis = 1.0f;
 
             Color += EvalRadiance(Q).cwiseProduct(Weight) * Weight_mis;
             break;
@@ -260,7 +267,6 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
 
     Vector3f SpecularPart = D * G * F / 4.0f / jacobDen;    // Cook-Torrance
 
-    //Vector3f TransmissionPart = ComputeBRDFTransmission(ViewingDir, N, SampleDir, intersect);
 
     // transmission
     float etai = intersect.shape->mat->ior;
@@ -295,21 +301,6 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
         }*/
 
 
-        if (
-            (DiffusePart + SpecularPart + Vector3f(Et)).x() < 0 ||
-            (DiffusePart + SpecularPart + Vector3f(Et)).y() < 0 ||
-            (DiffusePart + SpecularPart + Vector3f(Et)).z() < 0)
-        {
-            PrintVector("diffuse: ", DiffusePart);
-            PrintVector("specc: ", SpecularPart);
-            PrintVector("trans: ", Vector3f(Et));
-
-            std::cout << "result: " << result << std::endl;
-            PrintVector("F: ", Fresnel(m.dot(SampleDir), intersect));
-        }
-
-
-
     }
     /*
     // Beer's Law
@@ -321,7 +312,8 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
     //Et = Et.cwiseProduct(attenuation);
     */
 
-    return ( DiffusePart +  SpecularPart +  Vector3f(Et)) * fabsf(N.dot(SampleDir));
+   return (Pd * DiffusePart + Pr * SpecularPart + Pt * Vector3f(Et)) * fabsf(N.dot(SampleDir));
+    //return ( DiffusePart +  SpecularPart +  Vector3f(Et)) * fabsf(N.dot(SampleDir));
 }
 
 
@@ -461,25 +453,6 @@ float Scene::PdfBrdf(Vector3f ViewingDir, Vector3f N, Vector3f SampleDir, const 
     float ProbDiffuse = intersect.shape->mat->Pd;
     float ProbSpecular = intersect.shape->mat->Pr;
     float ProbTransmission = intersect.shape->mat->Pt;
-
-    /*
-    float diffuse = fabsf(N.dot(SampleDir)) / PI;
-
-    Vector3f m = MidVector(ViewingDir, SampleDir);
-    float specular = DistributionFunction(m, intersect) * fabsf(m.dot(N)) / (4.0f * SampleDir.dot(m));
-
-    float transmission = VecProbTransmission(ViewingDir, N, SampleDir, intersect);
-
-    if (transmission != specular && intersect.shape->mat->ior == 1.25)
-    {
-        //std::cout << "D, PdfBRDF: " << diffuse << std::endl;
-        //std::cout << "S, PdfBRDF: " << specular << std::endl;
-        //std::cout << "T, PdfBRDF: " << transmission << std::endl;
-    }
-
-    return ProbDiffuse * diffuse + ProbSpecular * specular + ProbTransmission * transmission;
-    //return ProbDiffuse * diffuse + ProbSpecular * specular;
-    */
 
     float pd = fabs(SampleDir.dot(N)) / PI;
 
