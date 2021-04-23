@@ -33,7 +33,8 @@ class Material
     //Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
 
     Material(const Material& rhs) :
-        Kd(rhs.Kd), Ks(rhs.Ks), Kt(rhs.Kt), ior(rhs.ior), alpha(rhs.alpha), texid(rhs.texid) {}
+        Kd(rhs.Kd), Ks(rhs.Ks), Kt(rhs.Kt), ior(rhs.ior), alpha(rhs.alpha), texid(rhs.texid), 
+        Pd(rhs.Pd), Pr(rhs.Pr), Pt(rhs.Pt) {}
 
     Material(const Vector3f d, const Vector3f s, const float a, const Vector3f t, float ior);
 

@@ -29,7 +29,7 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 4000
+#define NUM_PASS 100
 
 
 Scene::Scene() 
@@ -91,7 +91,10 @@ void Scene::Command(const std::vector<std::string>& strings,
         height = int(f[2]); }
 
     else if (c == "camera") {
-        camera->setCamera(Vector3f(f[1], f[2], f[3]), Orientation(5, strings, f), f[4]);
+        camera->setCamera(Vector3f(f[1], f[2], f[3]), Orientation(5, strings, f), f[4], f[10], f[11]);
+        //std::cout << "f[5]: " << f[5] << std::endl;
+        //std::cout << "f[10]: " << f[10] << std::endl;
+        //std::cout << "f[11]: " << f[11] << std::endl;
     }
 
     else if (c == "brdf")  {
@@ -163,6 +166,7 @@ void Scene::TraceImage(Color* image, const int pass)
             for (int x = 0; x < width; x++) 
             {
                 const Ray ray = camera->generateRay(x, y, width, height);
+
                 Color color(TracePath(ray, Tree) / NUM_PASS);
 
                 if (Eigen::isinf(color).any()) continue;
@@ -296,12 +300,12 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
     if (SampleDir.dot(N) < 0.0f) {
         Vector3f Kt = intersect.shape->mat->Kt;
         for (int i = 0; i < 3; ++i) attenuation[i] = pow(Kt[i], it.t);
+        
     }
-    //Et = Et.cwiseProduct(attenuation);
+    Et = Et.cwiseProduct(attenuation);
     
 
    return (Pd * DiffusePart + Pr * SpecularPart + Pt * Vector3f(Et)) * fabsf(N.dot(SampleDir));
-    //return ( DiffusePart +  SpecularPart +  Vector3f(Et)) * fabsf(N.dot(SampleDir));
 }
 
 
