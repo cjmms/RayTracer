@@ -30,12 +30,15 @@ extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
 #define NUM_PASS 100
+#define DOV false
+#define BVH false
 
 
 Scene::Scene() 
     : RussianRoulette(0.8)
 { 
     camera = new Camera();
+    if(DOV) camera->EnableDOV();
 }
 
 void Scene::Finit()
@@ -109,7 +112,17 @@ void Scene::Command(const std::vector<std::string>& strings,
    
     else if (c == "sphere") {
         if (currentMat->isLight()) lights.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
-        objects.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
+        sphere = new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat);
+        //std::cout << "sphere: " << f[4] << std::endl;
+
+        if (f[4] == 0.3f)
+        {
+            sphere->B = Vector3f(1.0000, 0.00000, 1.300000);
+            sphere->C = Vector3f(1.00000, -1.00000, 0.700000);
+            std::cout << "find sphere" << std::endl;
+        }
+        
+        objects.push_back(sphere);
     }
 
     else if (c == "box") {
@@ -153,11 +166,17 @@ void Material::setTexture(const std::string path)
 
 void Scene::TraceImage(Color* image, const int pass)
 {
-    KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
+    //KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
 
     for (int i = 0; i < NUM_PASS; ++i) 
     {
         std::cout << "Rendering " << i << "th pass" << std::endl;
+
+
+        sphere->UpdateCenter(myrandom(RNGen));
+
+        //PrintVector("center", sphere->center);
+        KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
 
        #pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
         for (int y = 0; y < height; y++) 
@@ -181,12 +200,29 @@ void Scene::TraceImage(Color* image, const int pass)
 
 Intersection Scene::TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*> &Tree) const
 {
+    if (!BVH) return TraceRayNoBVH(ray);
+
     Minimizer minimizer(ray);
 
     BVMinimize(Tree, minimizer);
 
     // fill intersection base on Tracing result
     return minimizer.intersection;
+}
+
+
+Intersection Scene::TraceRayNoBVH(const Ray& ray) const
+{
+    float t = INF;
+    Intersection intersect;
+    // no BVH testing
+    for (auto obj : objects)
+    {
+        Intersection temp;
+        if (obj->intersect(ray, temp))
+            if (intersect.t == -1 || temp.t < intersect.t) intersect = temp;
+    }
+    return intersect;
 }
 
 

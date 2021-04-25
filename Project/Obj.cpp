@@ -2,10 +2,6 @@
 #include <cmath>
 
 
-#include <random>
-extern std::mt19937_64 RNGen;
-extern std::uniform_real_distribution<> myrandom;
-
 
 
 Interval::Interval(float t0, Vector3f N0, float t1, Vector3f N1)
@@ -49,6 +45,7 @@ Ray::Ray(Vector3f p, Vector3f dir)
 	: point(p), direction(dir)
 {
 	direction.normalize();
+	time = myrandom(RNGen);
 }
 
 
@@ -88,6 +85,17 @@ void Intersection::set(Shape* shape, Vector3f position, Vector3f normal, float t
 
 
 
+Vector3f Sphere::BezierCurve(float t) const
+{
+	return (1 - t)* (1 - t)* A + 2 * t * (1 - t) * B + t * t * C;
+}
+
+
+
+
+
+
+
 
 // Chpater 6.2, Page 144
 // Ray:				P(t) = S + tV
@@ -100,58 +108,6 @@ void Intersection::set(Shape* shape, Vector3f position, Vector3f normal, float t
 // roots:			(-b +/- sqrt(dis)) / 2a
 bool Sphere::intersect(const Ray ray, Intersection& intersection)
 {
-	/*
-	const Vector3f V = ray.direction;
-	const Vector3f Q = ray.point - center;
-
-	//const float a = V.dot(V);	// V is a unit vector, a is 1
-	const float b = 2.0f * Q.dot(V);
-	const float c = Q.dot(Q) - radius * radius;
-
-
-	const float discriminant = b * b - 4 * c;
-
-	// no intersection
-	if (discriminant < Epsilon) return false;
-
-	// roots calculation
-	const float t1 = (-b + sqrtf(discriminant)) / 2;
-	const float t2 = (-b - sqrtf(discriminant)) / 2;
-
-
-	if (t1 < Epsilon && t2 < Epsilon) return false;
-
-	// intersection points
-	const Vector3f p1 = ray.point + t1 * V;
-	const Vector3f p2 = ray.point + t2 * V;
-
-	// choose the closer intersection
-	Vector3f intersect;
-	float t;
-
-	//
-	if (t1 < 0 && t2 > 0) {
-		intersect = p2;
-		t = t2;
-	}
-	else if (t1 > 0 && t2 < 0){
-		intersect = p1;
-		t = t1;
-	}
-	else
-	{
-		intersect = t1 < t2 ? p1 : p2;
-		t = t1 < t2 ? t1 : t2;
-	}
-
-	Vector3f N = (intersect - center).normalized();
-
-	intersection.set(this, intersect, N, t);
-
-	return true;
-	*/
-
-
 
 	Vector3f Qbar = ray.point - center;
 	float QdotD = Qbar.dot(ray.direction);

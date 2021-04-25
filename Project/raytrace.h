@@ -8,6 +8,7 @@ class Camera;
 class Shape;
 class Intersection;
 class Ray;
+class Sphere;
 
 
 extern const float PI;
@@ -24,6 +25,8 @@ class Material
     unsigned int texid;
 
     float Pd, Pr, Pt;
+
+
 
     virtual bool isLight() { return false; }
 
@@ -100,9 +103,12 @@ public:
     Material* currentMat;
     Camera* camera;
     float RussianRoulette;
+    Sphere* sphere;
 
     std::vector<Shape*> objects;
     std::vector<Shape*> lights;
+
+    
 
     Scene();
     void Finit();
@@ -128,6 +134,7 @@ public:
 
     Intersection TraceRay(const Ray& ray, const KdBVH<float, 3, Shape*>& Tree) const;
 
+    Intersection TraceRayNoBVH(const Ray& ray) const;
 
     // tools
     Vector3f EvalRadiance(const Intersection& intersect) const;

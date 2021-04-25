@@ -5,6 +5,14 @@
 #include "glm/glm/glm.hpp"
 #include "Camera.h"
 
+
+
+#include <random>
+extern std::mt19937_64 RNGen;
+extern std::uniform_real_distribution<> myrandom;
+
+
+
 const float PI = 3.1415f;
 #define Epsilon 0.0001f
 extern const float Radians;    // Convert degrees to radians
@@ -39,10 +47,13 @@ class Ray {
 public:
 	Vector3f point;
 	Vector3f direction;
+	float time;
 
 	Ray(Vector3f p, Vector3f dir);
 
 	inline Vector3f evl(float t) const { return point + direction * t; }
+
+
 
 	// positive return value
 	float dis(Vector3f p);
@@ -81,6 +92,7 @@ public:
 	Shape(Material* mat) :mat(mat) {}
 
 	inline virtual ~Shape() {}
+
 	
 	inline virtual bool intersect(const Ray ray, Intersection& intersection) { return false; };
 	virtual Bbox bbox() const { return Bbox(); };
@@ -95,9 +107,18 @@ class Sphere : public Shape
 {
 public:
 	float radius;
+	Vector3f A;
+	Vector3f B;
+	Vector3f C;
 	Vector3f center;
 
-	Sphere(Vector3f c, float r, Material* m) : Shape(m), radius(r), center(c) {}
+	//float t;
+
+	inline void UpdateCenter(float t) { center = BezierCurve(Skewed(t)); }
+
+	inline float Skewed(float f) { return 1.0f - powf(1.0f - f, 4); }
+
+	Sphere(Vector3f c, float r, Material* m) : Shape(m), radius(r), A(c), B(c), C(c), center(c) {}
 
 	inline Vector3f getNormal(Vector3f p) { return p - center; }
 
@@ -107,6 +128,9 @@ public:
 	Intersection SampleSphere();
 
 	Bbox bbox() const override;
+
+private:
+	Vector3f BezierCurve(float t) const;
 };
 
 

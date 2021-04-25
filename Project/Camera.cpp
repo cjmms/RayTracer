@@ -34,7 +34,7 @@ Ray Camera::generateRay(int pixelX, int pixelY, int W, int H)
 	const float dy = 2 * (myrandom(RNGen) + pixelY) / H - 1;
 
 
-	//return Ray(eye, Vector3f(dx * X + dy * Y + Z));
+	if (!DOV) return Ray(eye, Vector3f(dx * X + dy * Y + Z));
 	return DepthOfViewRay(eye, X, Y, Z, dx, dy);
 }
 
