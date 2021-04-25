@@ -45,7 +45,6 @@ Ray::Ray(Vector3f p, Vector3f dir)
 	: point(p), direction(dir)
 {
 	direction.normalize();
-	time = myrandom(RNGen);
 }
 
 

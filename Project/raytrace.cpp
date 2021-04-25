@@ -29,16 +29,17 @@
 extern std::mt19937_64 RNGen;
 extern std::uniform_real_distribution<> myrandom;
 
-#define NUM_PASS 100
-#define DOV false
-#define BVH false
+#define NUM_PASS 4000
+#define DOF false
+#define BVH true
+#define MotionBlurEnable true
 
 
 Scene::Scene() 
     : RussianRoulette(0.8)
 { 
     camera = new Camera();
-    if(DOV) camera->EnableDOV();
+    camera->DepthOfField = DOF;
 }
 
 void Scene::Finit()
@@ -95,9 +96,6 @@ void Scene::Command(const std::vector<std::string>& strings,
 
     else if (c == "camera") {
         camera->setCamera(Vector3f(f[1], f[2], f[3]), Orientation(5, strings, f), f[4], f[10], f[11]);
-        //std::cout << "f[5]: " << f[5] << std::endl;
-        //std::cout << "f[10]: " << f[10] << std::endl;
-        //std::cout << "f[11]: " << f[11] << std::endl;
     }
 
     else if (c == "brdf")  {
@@ -113,13 +111,12 @@ void Scene::Command(const std::vector<std::string>& strings,
     else if (c == "sphere") {
         if (currentMat->isLight()) lights.push_back(new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat));
         sphere = new Sphere(Vector3f(f[1], f[2], f[3]), f[4], currentMat);
-        //std::cout << "sphere: " << f[4] << std::endl;
 
         if (f[4] == 0.3f)
         {
+            std::cout << "sphere" << std::endl;
             sphere->B = Vector3f(1.0000, 0.00000, 1.300000);
             sphere->C = Vector3f(1.00000, -1.00000, 0.700000);
-            std::cout << "find sphere" << std::endl;
         }
         
         objects.push_back(sphere);
@@ -172,12 +169,9 @@ void Scene::TraceImage(Color* image, const int pass)
     {
         std::cout << "Rendering " << i << "th pass" << std::endl;
 
-
-        sphere->UpdateCenter(myrandom(RNGen));
-
-        //PrintVector("center", sphere->center);
-        KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
-
+        //myrandom(RNGen)
+         sphere->UpdateCenter(myrandom(RNGen));
+         KdBVH<float, 3, Shape*> Tree(objects.begin(), objects.end());
        #pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
         for (int y = 0; y < height; y++) 
         {
@@ -316,19 +310,6 @@ Vector3f Scene::EvalScattering(Vector3f ViewingDir, Vector3f N, Vector3f SampleD
             * fabs(SampleDir.dot(m) * ViewingDir.dot(m)) * etao * etao
             / den / den;
         Et = result * (Vector3f(1.0f, 1.0f, 1.0f) - Fresnel(m.dot(SampleDir), intersect));
-
-        /*
-        if (result != 0) {
-            std::cout << "den: " << den << std::endl;
-            std::cout << "DistributionPhong: " << DistributionPhong(m, intersect) << std::endl;
-            std::cout << "GPhong(it, wi, wo, m): " << GeometryFunction(ViewingDir, SampleDir, m, intersect) << std::endl;
-            std::cout << "jacobDen: " << jacobDen << std::endl;
-
-            std::cout << "result: " << result << std::endl;
-            PrintVector("F: ", Fresnel(m.dot(SampleDir), intersect));
-        }*/
-
-
     }
     
     // Beer's Law
@@ -375,18 +356,6 @@ Vector3f Scene::SampleBrdf(Vector3f ViewDir, Vector3f N, const Intersection& int
         if (ViewDir.dot(N) > 0) eta = 1.0f / eta;
         float woDotM = ViewDir.dot(m);
         float r = 1.0f - eta * eta * (1 - woDotM * woDotM);
-
-        /*
-        Vector3f result = (eta * woDotM - (ViewDir.dot(N) > 0.0f ? 1.0f : -1.0f) * sqrt(r)) * m - eta * ViewDir;
-        
-        if (intersect.shape->mat->ior == 1.25) {
-            PrintVector("ray pos: ", intersect.position);
-            PrintVector("ray dir: ", result);
-            PrintVector("N: ", N);
-            std::cout << "Dot product result: " << result.dot(N) << std::endl;
-            if (result.dot(N) > 0) std::cout << "same side" << std::endl;
-            else std::cout << "not same side" << std::endl;
-        }*/
 
         if (r < 0) return 2.0f * woDotM * m - ViewDir;       
         else return (eta * woDotM - (ViewDir.dot(N) > 0.0f ? 1.0f : -1.0f) * sqrt(r)) * m - eta * ViewDir;

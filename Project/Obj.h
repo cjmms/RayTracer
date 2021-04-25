@@ -47,13 +47,10 @@ class Ray {
 public:
 	Vector3f point;
 	Vector3f direction;
-	float time;
 
 	Ray(Vector3f p, Vector3f dir);
 
 	inline Vector3f evl(float t) const { return point + direction * t; }
-
-
 
 	// positive return value
 	float dis(Vector3f p);
@@ -112,9 +109,7 @@ public:
 	Vector3f C;
 	Vector3f center;
 
-	//float t;
-
-	inline void UpdateCenter(float t) { center = BezierCurve(Skewed(t)); }
+	inline void UpdateCenter(float t) { center = BezierCurve( Skewed(t) );}
 
 	inline float Skewed(float f) { return 1.0f - powf(1.0f - f, 4); }
 

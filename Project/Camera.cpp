@@ -34,13 +34,14 @@ Ray Camera::generateRay(int pixelX, int pixelY, int W, int H)
 	const float dy = 2 * (myrandom(RNGen) + pixelY) / H - 1;
 
 
-	if (!DOV) return Ray(eye, Vector3f(dx * X + dy * Y + Z));
+	//if (!DepthOfField) return Ray(eye, Vector3f(dx * X + dy * Y + Z));
 	return DepthOfViewRay(eye, X, Y, Z, dx, dy);
 }
 
 
 Ray Camera::DepthOfViewRay(Vector3f eye, Vector3f X, Vector3f Y, Vector3f Z, float dx, float dy)
 {
+	//std::cout << "depth of field!" <<std::endl;
 	Vector2f offset = RandomPointInCircle(radius);
 	const float rx = offset.x();
 	const float ry = offset.y();
